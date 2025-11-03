@@ -1,10 +1,27 @@
+// server/routes/evaluations.js
 const express = require('express');
 const router = express.Router();
-const { submitEvaluation } = require('../controllers/evaluationController');
+const { 
+    submitEvaluation, 
+    getEvaluation, 
+    getEvaluations, 
+    updateEvaluation, 
+    deleteEvaluation 
+} = require('../controllers/evaluationController');
 
-// This line tells Express:
-// "When you get a POST request to a URL like '/api/evaluations/ANYTHING',
-//  run the submitEvaluation function."
+// Submit a new evaluation
 router.post('/:formName', submitEvaluation);
+
+// Get all evaluations for a form
+router.get('/:formName', getEvaluations);
+
+// Get a specific evaluation by ID
+router.get('/:formName/:evaluationId', getEvaluation);
+
+// Update an evaluation
+router.put('/:formName/:evaluationId', updateEvaluation);
+
+// Delete an evaluation
+router.delete('/:formName/:evaluationId', deleteEvaluation);
 
 module.exports = router;

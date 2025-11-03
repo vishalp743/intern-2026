@@ -1,44 +1,36 @@
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
 
 exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // ... (Admin login logic remains the same)
-        if (email === process.env.ADMIN_EMAIL) {
-            if (password === process.env.ADMIN_PASSWORD) {
-                return res.json({
-                    message: "Admin login successful",
-                    user: { name: "Admin", role: "Admin" }
-                });
-            } else {
-                return res.status(400).json({ msg: "Invalid Credentials" });
-            }
-        }
-        
-        // Check for Tutor User in Database
+        // Find user by email (Admin or Tutor)
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ msg: "Invalid Credentials" });
+            return res.status(400).json({ msg: "Invalid credentials" });
         }
 
-        
-        if (password != user.password) {
-            return res.status(400).json({ msg: "Invalid Credentials" });
+        // Compare plain text passwords
+        if (user.password !== password) {
+            return res.status(400).json({ msg: "Invalid credentials" });
         }
-        
-        // FIX: Save the email to the session object
-        req.session.tutorEmail = user.email;
-        
-        // Tutor login successful
+
+        // Save session info
+        req.session.userEmail = user.email;
+        req.session.userRole = user.role;
+
+        // Login successful
         return res.json({
-            message: "Tutor login successful",
-            user: { name: user.name, role: user.role, id: user._id }
+            message: `${user.role} login successful`,
+            user: {
+                name: user.name,
+                role: user.role,
+                id: user._id
+            }
         });
 
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send("Server Error");
     }
 };

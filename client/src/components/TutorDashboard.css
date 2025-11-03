@@ -1,0 +1,109 @@
+.tutor-dashboard {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 30px 20px;
+    font-family: 'Segoe UI', 'Roboto', 'Oxygen', sans-serif;
+}
+
+.dashboard-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.dashboard-header h1 {
+    font-size: 32px;
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.dashboard-header p {
+    color: #7f8c8d;
+}
+
+.selection-section {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.dropdown-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px;
+    width: 48%;
+}
+
+.dropdown-group label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #2c3e50;
+}
+
+select, input[type="number"], textarea {
+    padding: 10px;
+    border: 1px solid #bdc3c7;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border 0.2s ease;
+}
+
+select:focus, input:focus, textarea:focus {
+    border-color: #3498db;
+}
+
+.divider {
+    margin: 30px 0;
+    border: 0;
+    border-top: 2px solid #ecf0f1;
+}
+
+.evaluation-form {
+    background: #fdfdfd;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.form-section {
+    margin-bottom: 25px;
+}
+
+.form-field, .subfield {
+    margin-bottom: 15px;
+}
+
+.main-field {
+    margin-bottom: 25px;
+    padding: 15px;
+    border: 1px solid #ecf0f1;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+.subfield-group {
+    padding-left: 15px;
+}
+
+.avg-score {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.submit-btn {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s ease;
+}
+
+.submit-btn:hover {
+    background-color: #2980b9;
+}
