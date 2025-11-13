@@ -214,12 +214,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Open visualization page in a new tab (Admin Visualizations)
-  const openVisualizations = () => {
-    // Use absolute path to respect base path — this will open the SPA route in a new tab
-    const url = `${window.location.origin}/admin/visualizations`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+
 
   // ========== RENDER ==========
   return (
@@ -510,14 +505,7 @@ const AdminDashboard = () => {
                 </button>
 
                 {/* NEW: View Visualizations button opens the visualization page in a new tab */}
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={openVisualizations}
-                  style={{ marginLeft: '12px' }}
-                >
-                  View Visualizations 📊
-                </button>
+                
               </div>
             </form>
           </div>

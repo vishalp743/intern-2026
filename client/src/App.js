@@ -18,10 +18,10 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
         <Route path="/tutor" element={<RequireAuth><TutorDashboard /></RequireAuth>} />
+      
 
        
-        {/* fallback route */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        
       </Routes>
     </Router>
   );
