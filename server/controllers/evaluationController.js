@@ -61,11 +61,14 @@ exports.submitEvaluation = async (req, res) => {
 
   try {
     // 1. Get the tutor's email from the session
-    const tutorEmail = req.session.tutorEmail;
-    console.log(tutorEmail);
-    if (!tutorEmail) {
-      return res.status(401).json({ msg: 'Authorization denied, no session cookie.' });
-    }
+    // 1. Get tutor info from verified JWT token
+const tutorEmail = req.user.email;
+const tutorId = req.user.userId;
+
+if (!tutorEmail || !tutorId) {
+  return res.status(401).json({ msg: 'Authorization denied, invalid token.' });
+}
+
 
     // 2. Find the tutor in the database using their email
     const tutorUser = await User.findOne({ email: tutorEmail });

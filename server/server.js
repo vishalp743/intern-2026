@@ -17,14 +17,16 @@ app.use(express.json());
 
 app.use(cookieParser()); // 2. Use the middleware
 
+// ✅ Session setup
 app.use(session({
-    secret: 'your-secret-key',           // Change this to something secure
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        maxAge: 3600 * 1000,             // 1 hour
-        secure: false                    // Set true if using HTTPS
-    }
+  secret: 'yourSecretKey',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: false, // true if using HTTPS
+    sameSite: 'lax' // or 'none' if using secure cookies across domains
+  }
 }));
 
 app.get('/', (req, res) => res.send('API Running'));
@@ -36,7 +38,8 @@ app.use('/api/forms', require('./routes/forms'));
 app.use('/api/interns', require('./routes/interns'));
 app.use('/api/evaluations', require('./routes/evaluations'));
 app.use('/api/users', require('./routes/users'));
-
+// ✅ New Visualization route
+app.use('/api/visualizations', require('./routes/visualizations'));
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));

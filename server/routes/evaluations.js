@@ -1,27 +1,14 @@
-// server/routes/evaluations.js
 const express = require('express');
 const router = express.Router();
-const { 
-    submitEvaluation, 
-    getEvaluation, 
-    getEvaluations, 
-    updateEvaluation, 
-    deleteEvaluation 
-} = require('../controllers/evaluationController');
+const evaluationController = require('../controllers/evaluationController');
+const auth = require('../middleware/auth');
 
-// Submit a new evaluation
-router.post('/:formName', submitEvaluation);
+router.post('/:formName', auth, evaluationController.submitEvaluation);
+router.get('/:formName', auth, evaluationController.getEvaluations);
+router.get('/:formName/:evaluationId', auth, evaluationController.getEvaluation);
+router.put('/:formName/:evaluationId', auth, evaluationController.updateEvaluation);
+router.delete('/:formName/:evaluationId', auth, evaluationController.deleteEvaluation);
 
-// Get all evaluations for a form
-router.get('/:formName', getEvaluations);
 
-// Get a specific evaluation by ID
-router.get('/:formName/:evaluationId', getEvaluation);
-
-// Update an evaluation
-router.put('/:formName/:evaluationId', updateEvaluation);
-
-// Delete an evaluation
-router.delete('/:formName/:evaluationId', deleteEvaluation);
 
 module.exports = router;
