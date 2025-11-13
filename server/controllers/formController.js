@@ -61,5 +61,20 @@ const getActiveForms = async (req, res) => {
   }
 };
 
+// @desc Get all form definitions (Admin only for visualization)
+// @route GET /api/forms
+// @access Private (Admin)
+const getAllForms = async (req, res) => {
+  try {
+    // Populate the tutor field so the Admin can see who the form belongs to
+    // and correctly identify the form definition when processing evaluations.
+    const forms = await FormDefinition.find().populate('tutor', 'name email');
+    res.json(forms);
+  } catch (err) {
+    console.error('Error fetching all forms for admin:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+};
+
 // ✅ Export correctly as named exports
-module.exports = { createForm, getActiveForms };
+module.exports = { createForm, getActiveForms, getAllForms };

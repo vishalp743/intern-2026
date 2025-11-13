@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
 import TutorDashboard from './components/TutorDashboard';
+import AdminVisualization from './components/AdminVisualization';
 
 
 // Example of a simple auth check (token presence). You may replace with proper auth
@@ -17,11 +18,8 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
+        <Route path="/admin/visualizations" element={<RequireAuth><AdminVisualization /></RequireAuth>} />
         <Route path="/tutor" element={<RequireAuth><TutorDashboard /></RequireAuth>} />
-      
-
-       
-        
       </Routes>
     </Router>
   );

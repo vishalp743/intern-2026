@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import './AdminDashboard.css';
 
@@ -35,6 +36,8 @@ const AdminDashboard = () => {
   // UI states
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  const navigate = useNavigate(); // Initialize useNavigate
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -214,6 +217,9 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleViewVisualizations = () => {
+    navigate('/admin/visualizations');
+  };
 
 
   // ========== RENDER ==========
@@ -338,7 +344,7 @@ const AdminDashboard = () => {
                   id="internEmail"
                   type="email"
                   value={internEmail}
-                  onChange={(e) => setInternEmail(e.target.value)}
+                  onChange={(e) => setUserEmail(e.target.value)}
                   placeholder="Enter email address"
                   required
                 />
@@ -499,13 +505,20 @@ const AdminDashboard = () => {
                 </button>
               </div>
 
-              <div className="form-actions">
+              <div className="form-actions" style={{ display: 'flex', gap: '15px' }}>
                 <button type="submit" className="btn-primary" disabled={loading}>
                   {loading ? 'Creating...' : 'Create Form'}
                 </button>
 
                 {/* NEW: View Visualizations button opens the visualization page in a new tab */}
-                
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={handleViewVisualizations}
+                  style={{ flexGrow: 1, backgroundColor: '#2ecc71', color: 'white' }}
+                >
+                  View Visualizations 📊
+                </button>
               </div>
             </form>
           </div>

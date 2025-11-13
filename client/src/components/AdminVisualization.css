@@ -1,0 +1,174 @@
+/* client/src/components/AdminVisualization.css */
+.visualization-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+.vis-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.vis-header h1 {
+    font-size: 32px;
+    color: #2c3e50;
+    margin: 0 0 10px 0;
+}
+
+/* Filters */
+.filter-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    align-items: end;
+}
+
+.filter-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #34495e;
+    font-size: 14px;
+}
+
+.apply-btn {
+    padding: 12px 20px;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    width: 100%;
+}
+
+.apply-btn:hover:not(:disabled) {
+    background: #27ae60;
+}
+
+.apply-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Content Sections */
+.visualization-content {
+    display: grid;
+    gap: 30px;
+}
+
+/* Chart Styles */
+.chart-container {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container h3 {
+    font-size: 20px;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ecf0f1;
+    padding-bottom: 10px;
+}
+
+/* Table */
+.data-table-container {
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.data-table-container h3 {
+    padding: 15px 20px;
+    margin: 0;
+    font-size: 20px;
+    color: #2c3e50;
+    border-bottom: 1px solid #ecf0f1;
+    background: #fdfdfe;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+}
+
+.data-table th, .data-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.data-table th {
+    background: #ecf0f1;
+    font-weight: 600;
+    color: #34495e;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+}
+
+.data-table th:hover {
+    background: #dce1e3;
+}
+
+.data-table tbody tr:hover {
+    background: #f4f6f7;
+}
+
+.data-table .sort-icon {
+    margin-left: 5px;
+    font-size: 10px;
+}
+
+/* Radar Charts */
+.radar-charts-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+.radar-chart-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.radar-chart-card h4 {
+    margin-top: 0;
+    color: #3498db;
+}
+
+/* Info Messages */
+.message-info {
+    padding: 15px;
+    background-color: #eaf6ff;
+    border: 1px solid #3498db;
+    color: #34495e;
+    border-radius: 6px;
+    text-align: center;
+    margin-bottom: 20px;
+    font-style: italic;
+    grid-column: 1 / -1; /* Span across all columns in the grid */
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 50px;
+    font-size: 18px;
+    color: #3498db;
+}
