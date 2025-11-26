@@ -23,6 +23,54 @@
     margin: 0;
 }
 
+/* ===== NEW: NAVBAR STYLING ===== */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1e2a38;
+  color: #fff;
+  padding: 0.8rem 2rem;
+  border-bottom: 3px solid #3f8efc;
+}
+
+.nav-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.navbar-right {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.nav-btn,
+.logout-btn {
+  background-color: #3f8efc;
+  border: none;
+  padding: 0.5rem 1rem;
+  color: white;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.nav-btn:hover {
+  background-color: #5fa1ff;
+}
+
+.logout-btn {
+  background-color: #ff4b4b;
+}
+
+.logout-btn:hover {
+  background-color: #e03e3e;
+}
+
+
 /* Tabs */
 .tabs-container {
     display: flex;

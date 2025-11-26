@@ -5,6 +5,10 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* --- Nutanix Theme --- */
+  background-color: #ecf0f1; /* Light gray page background */
+  color: #131313; /* Charcoal Gray Core for all text */
 }
 
 code {

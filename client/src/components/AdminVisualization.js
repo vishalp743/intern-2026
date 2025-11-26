@@ -1,34 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, Legend, ResponsiveContainer,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar
+  LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Cell
 } from 'recharts';
 import api from '../services/api';
 import './AdminVisualization.css';
 
-// Helper to assign distinct colors for charts (up to 10 entities)
+// --- CONSTANTS ---
 const COLORS = [
-    '#3498db', // 0: Blue (Technical Skill)
-    '#e74c3c', // 1: Red (Communication)
-    '#2ecc71', // 2: Green (Problem Solving)
-    '#9b59b6', // 3: Purple (Teamwork)
-    '#f1c40f', // 4: Yellow (Professionalism)
-    '#1abc9c', 
-    '#e67e22', 
-    '#34495e', 
-    '#c0392b', 
-    '#2980b9'
+    '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f',
+    '#1abc9c', '#e67e22', '#34495e', '#c0392b', '#2980b9'
 ];
 
-// Define the colors for the 5 main default metrics based on the array order (from FormDefinition.js)
 const MAIN_METRICS = [
-    'Technical Skill',
-    'Communication',
-    'Problem Solving',
-    'Teamwork',
-    'Professionalism',
+    'Technical Skill', 'Communication', 'Problem Solving', 'Teamwork', 'Professionalism',
 ];
 
 const METRIC_COLOR_MAP = MAIN_METRICS.reduce((acc, metric, index) => {
@@ -36,44 +23,27 @@ const METRIC_COLOR_MAP = MAIN_METRICS.reduce((acc, metric, index) => {
     return acc;
 }, {});
 
-// Helper function to render colored ticks on the PolarAngleAxis
+// --- HELPERS ---
 const renderCustomRadarTick = (props) => {
     const { x, y, payload } = props;
-    
-    // Extract the base metric name (removes the " / Submetric Name" part)
     const baseMetricName = payload.value.split(' / ')[0];
     const color = METRIC_COLOR_MAP[baseMetricName] || '#333';
-    
-    // Display only the sub-metric name if it's too long
-    const textLabel = payload.value.length > 20 ? `${payload.value.split(' / ')[1] || payload.value}` : payload.value;
+    const textLabel = payload.value.includes(' / ') ? payload.value.split(' / ')[1] : payload.value;
 
     return (
         <g transform={`translate(${x},${y})`}>
-            <text 
-                x={0} 
-                y={0} 
-                dy={10} 
-                textAnchor="middle" 
-                fill={color} 
-                fontSize={10}
-            >
-                {textLabel}
-            </text>
+            <text x={0} y={0} dy={10} textAnchor="middle" fill={color} fontSize={10}>{textLabel}</text>
         </g>
     );
 };
 
-
-// Custom Tooltip for Recharts
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div className="custom-tooltip" style={{ backgroundColor: '#fff', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
         <p className="label" style={{ fontWeight: 'bold', borderBottom: '1px solid #eee', paddingBottom: '5px', marginBottom: '5px' }}>{`${label}`}</p>
         {payload.map((p, index) => (
-          <p key={index} style={{ color: p.color, margin: '2px 0' }}>
-            {`${p.name}: ${typeof p.value === 'number' ? p.value.toFixed(2) : p.value}`}
-          </p>
+          <p key={index} style={{ color: p.color, margin: '2px 0' }}>{`${p.name}: ${typeof p.value === 'number' ? p.value.toFixed(2) : p.value}`}</p>
         ))}
       </div>
     );
@@ -81,37 +51,28 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-// Function to safely extract metric scores from an evaluation object
 const getMetricScores = (evaluation, metricType, formDefinition) => {
-    const allFields = [
-        ...(formDefinition.commonFields || []), 
-        ...(formDefinition.customFields || [])
-    ];
-    
     const scores = {};
     const metrics = [];
+    const allFields = [...(formDefinition.commonFields || []), ...(formDefinition.customFields || [])];
 
-    // Iterate over the actual saved scores (fieldScores)
     for (const field of evaluation.fieldScores) {
         const fieldName = field.fieldName;
-        
         if (metricType === 'Main Metric') {
-            // Case 1: Main Metric
             scores[fieldName] = field.score;
             metrics.push(fieldName);
         } else {
-            // Case 2: Sub Metric - Get the sub-metrics that actually have subScores
             const definition = allFields.find(f => f.fieldName === fieldName);
-            
             if (definition?.subFields?.length > 0) {
-                // Ensure field.subScores exists and iterate over them
                 for (const subScore of field.subScores || []) {
                     const subMetricKey = `${fieldName} / ${subScore.subFieldName}`;
-                    scores[subMetricKey] = subScore.score;
+                    const subDef = definition.subFields.find(sf => sf.subFieldName === subScore.subFieldName);
+                    const rawScore = subScore.score; 
+                    const maxScore = subDef?.maxValue || 5; 
+                    scores[subMetricKey] = maxScore > 0 ? (rawScore / maxScore) * 10 : 0;
                     metrics.push(subMetricKey);
                 }
             } else {
-                 // For fields defined without subfields, use the main score and its name
                  scores[fieldName] = field.score;
                  metrics.push(fieldName);
             }
@@ -120,192 +81,144 @@ const getMetricScores = (evaluation, metricType, formDefinition) => {
     return { scores, metrics };
 };
 
+const exportToCSV = (data, filename) => {
+  if (!data.length) return;
+  const flattenedData = data.map(row => {
+      const flatRow = { ...row };
+      if (flatRow.metricScores) {
+          Object.entries(flatRow.metricScores).forEach(([key, val]) => flatRow[key] = val);
+          delete flatRow.metricScores;
+      }
+      delete flatRow.evaluations; 
+      return flatRow;
+  });
+  const headers = Object.keys(flattenedData[0]).join(',');
+  const rows = flattenedData.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([headers + '\n' + rows], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+};
 
-// --- COMPONENT START ---
+const getScoreColor = (score) => {
+    if (score >= 9) return '#27ae60'; 
+    if (score >= 7.5) return '#2980b9'; 
+    if (score >= 6) return '#f39c12'; 
+    return '#c0392b'; 
+};
+
+// Reusing the grade logic for dynamic rows
+const getGradeLabel = (score) => {
+    if (score >= 9.0) return 'Excellent';
+    if (score >= 7.5) return 'Good';
+    if (score >= 6.0) return 'Average';
+    if (score >= 4.0) return 'Improvement Required';
+    return 'Unsatisfactory';
+};
+
+// --- COMPONENT ---
 const AdminVisualization = () => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('ranking'); 
   const [loading, setLoading] = useState(false);
+  
+  // Visualizations Tab Data
   const [allForms, setAllForms] = useState([]);
   const [allInterns, setAllInterns] = useState([]);
-
-  // Filter States
   const [selectedForms, setSelectedForms] = useState([]);
   const [selectedInterns, setSelectedInterns] = useState([]);
   const [metricLevel, setMetricLevel] = useState('Main Metric');
-
-  // Processed Data States
   const [tableData, setTableData] = useState([]);
-  const [radarData, setRadarData] = useState([]); // Case 1 or Case 3
-  const [lineChartData, setLineChartData] = useState([]); // Case 3 only
-  const [barChartData, setBarChartData] = useState([]); // Case 2 (Grouped) & Case (Average/Distribution)
-  const [dataMetrics, setDataMetrics] = useState([]); // The list of metrics (table columns)
+  const [radarData, setRadarData] = useState([]); 
+  const [lineChartData, setLineChartData] = useState([]); 
+  const [barChartData, setBarChartData] = useState([]); 
+  const [dataMetrics, setDataMetrics] = useState([]); 
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
-  // --- DATA FETCHING ---
+  // Ranking Tab Data
+  const [studentsData, setStudentsData] = useState([]);
+  const [selectedStudentFilter, setSelectedStudentFilter] = useState(null); 
+  const [selectedMetricSort, setSelectedMetricSort] = useState({ value: 'averageScore', label: 'Average Final Score' });
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+
   const fetchInitialData = useCallback(async () => {
     try {
-      // Admin must fetch ALL forms defined in the system
       const [formsRes, internsRes] = await Promise.all([
-        api.get('/forms'), // Admin fetches ALL forms
+        api.get('/forms'), 
         api.get('/interns'),
       ]);
-      
-      setAllForms(formsRes.data.map(f => ({ 
-        value: f.formName, 
-        label: `${f.formName} (Tutor: ${f.tutor.name})`, 
-        _id: f._id, 
-        definition: f,
-        createdAt: f.createdAt // Keep creation date for sorting if needed
-      })));
-      setAllInterns(internsRes.data.map(i => ({ 
-        value: i._id, 
-        label: `${i.name} (${i.email})`, 
-        name: i.name 
-      })));
-    } catch (error) {
-      console.error('Error fetching initial data:', error);
-    }
+      setAllForms(formsRes.data.map(f => ({ value: f.formName, label: `${f.formName}`, _id: f._id, definition: f, createdAt: f.createdAt })));
+      setAllInterns(internsRes.data.map(i => ({ value: i._id, label: `${i.name} (${i.email})`, name: i.name })));
+    } catch (error) { console.error('Error fetching initial data:', error); }
   }, []);
 
+  useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
+
   useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
+      if (activeTab === 'ranking' && studentsData.length === 0) {
+          const fetchAnalytics = async () => {
+              setLoading(true);
+              try {
+                  const res = await api.get('/evaluations/global-analytics');
+                  setStudentsData(res.data);
+              } catch (error) { console.error("Error fetching analytics:", error); } finally { setLoading(false); }
+          };
+          fetchAnalytics();
+      }
+  }, [activeTab, studentsData.length]);
 
-  // --- DATA PROCESSING & AGGREGATION ---
+  // --- LOGIC TAB 1 (VISUALIZATION) ---
   const handleApplyFilters = async () => {
-    if (selectedForms.length === 0 || selectedInterns.length === 0) {
-      alert('Please select at least one form and one intern.');
-      return;
-    }
-
-    setLoading(true);
-    setTableData([]);
-    setRadarData([]);
-    setLineChartData([]);
-    setBarChartData([]);
-    setDataMetrics([]);
-
+    if (selectedForms.length === 0 || selectedInterns.length === 0) { alert('Please select form and intern.'); return; }
+    setLoading(true); setTableData([]); setRadarData([]); setLineChartData([]); setBarChartData([]); setDataMetrics([]);
     try {
-      // 1. Fetch all evaluations for the selected forms concurrently
-      const fetchPromises = selectedForms.map(form => 
-        api.get(`/evaluations/${form.value}`).then(res => ({
-          formName: form.value,
-          formDef: form.definition,
-          evaluations: res.data,
-          formCreatedAt: form.createdAt,
-        }))
-      );
-      
+      const fetchPromises = selectedForms.map(form => api.get(`/evaluations/${form.value}`).then(res => ({ formName: form.value, formDef: form.definition, evaluations: res.data, formCreatedAt: form.createdAt })));
       const results = await Promise.all(fetchPromises);
       const selectedInternIds = selectedInterns.map(i => i.value);
+      let newTableData = []; let allMetrics = new Set();
       
-      let newTableData = [];
-      let allMetrics = new Set();
-      
-      // 2. Process fetched evaluations
       for (const result of results) {
-        const { formName, formDef, evaluations, formCreatedAt } = result;
-        
-        // Filter evaluations by the selected interns for table and main charts
-        const filteredEvals = evaluations.filter(evalItem => 
-          selectedInternIds.includes(evalItem.intern._id)
-        );
-
-        // Map filtered evaluation data to table rows
+        const filteredEvals = result.evaluations.filter(evalItem => selectedInternIds.includes(evalItem.intern._id));
         for (const evalItem of filteredEvals) {
             const internName = allInterns.find(i => i.value === evalItem.intern._id)?.name || 'Unknown';
-            const { scores, metrics } = getMetricScores(evalItem, metricLevel, formDef);
-            
+            const { scores, metrics } = getMetricScores(evalItem, metricLevel, result.formDef);
             metrics.forEach(m => allMetrics.add(m));
-            
-            newTableData.push({
-                internId: evalItem.intern._id,
-                internName: internName,
-                formName: formName,
-                ...scores,
-                date: new Date(evalItem.createdAt).toLocaleDateString(),
-                createdAt: evalItem.createdAt, // For chronological sorting
-                formCreatedAt: formCreatedAt
-            });
+            newTableData.push({ internId: evalItem.intern._id, internName: internName, formName: result.formName, ...scores, finalGrade: evalItem.finalGrade, date: new Date(evalItem.createdAt).toLocaleDateString(), createdAt: evalItem.createdAt, formCreatedAt: result.formCreatedAt });
         }
       }
-      
-      // 3. Update core states
       const metricsArray = Array.from(allMetrics).sort();
       setDataMetrics(metricsArray);
       setTableData(newTableData);
       
-      // 4. Conditional Chart Preparation
-      const numForms = selectedForms.length;
-      const numInterns = selectedInterns.length;
-      
+      const numForms = selectedForms.length; const numInterns = selectedInterns.length;
       if (numForms === 1 && numInterns === 1 && newTableData.length > 0) {
-        // Case 1: One Form + One Intern -> Single Radar Chart
         const radarBase = newTableData[0];
-        
-        const chartData = metricsArray.map(metric => ({
-          subject: metric, // Use full name as subject
-          [radarBase.internName]: radarBase[metric] || 0,
-          fullMark: 10,
-        }));
+        const chartData = metricsArray.map(metric => ({ subject: metric, [radarBase.internName]: radarBase[metric] || 0, fullMark: 10 }));
         setRadarData(chartData);
-        
       } else if (numForms === 1 && numInterns > 1 && newTableData.length > 0) {
-        // Case 2: One Form + Multiple Interns -> Grouped Bar Chart
         const barChartData = metricsArray.map(metric => {
             const dataPoint = { name: metric };
-            newTableData.forEach(row => {
-                dataPoint[row.internName] = row[metric] || 0;
-            });
+            newTableData.forEach(row => { dataPoint[row.internName] = row[metric] || 0; });
             return dataPoint;
         });
         setBarChartData(barChartData);
-        
       } else if (numForms > 1 && numInterns === 1 && newTableData.length > 0) {
-        // Case 3: Multiple Forms + One Intern -> Multiple Radar Charts & Line Chart
         const sortedDataForCharts = newTableData.sort((a, b) => new Date(a.formCreatedAt) - new Date(b.formCreatedAt));
-        
-        // Radar Data (one chart per form)
-        const radarCharts = sortedDataForCharts.map(item => {
-            const { formName, date, ...scores } = item;
-            return {
-                title: `${formName} (on ${date})`,
-                data: metricsArray.map(metric => ({
-                    subject: metric,
-                    score: scores[metric] || 0,
-                    fullMark: 10,
-                })),
-            };
-        });
+        const radarCharts = sortedDataForCharts.map(item => ({ title: `${item.formName} (${item.date})`, data: metricsArray.map(metric => ({ subject: metric, score: item[metric] || 0, fullMark: 10 })) }));
         setRadarData(radarCharts);
-
-        // Line Chart Data (Metrics over Forms Chronologically)
-        setLineChartData(sortedDataForCharts.map((item) => {
-            const row = { name: item.formName };
-            metricsArray.forEach(metric => {
-                row[metric] = item[metric];
-            });
-            return row;
-        }));
-        
+        setLineChartData(sortedDataForCharts.map((item) => { const row = { name: item.formName }; metricsArray.forEach(metric => { row[metric] = item[metric]; }); return row; }));
       } else if (numForms > 1 && numInterns > 1 && newTableData.length > 0) {
-        // Case 4 (Bonus: Multiple Forms + Multiple Interns) -> Average Score Comparison Chart
-        
         const avgScoresByForm = {};
         metricsArray.forEach(metric => avgScoresByForm[metric] = {});
-
         newTableData.forEach(row => {
             metricsArray.forEach(metric => {
-                const formName = row.formName;
-                const score = row[metric] || 0;
-                if (!avgScoresByForm[metric][formName]) {
-                    avgScoresByForm[metric][formName] = { sum: 0, count: 0 };
-                }
-                avgScoresByForm[metric][formName].sum += score;
-                avgScoresByForm[metric][formName].count += 1;
+                const formName = row.formName; const score = row[metric] || 0;
+                if (!avgScoresByForm[metric][formName]) avgScoresByForm[metric][formName] = { sum: 0, count: 0 };
+                avgScoresByForm[metric][formName].sum += score; avgScoresByForm[metric][formName].count += 1;
             });
         });
-        
         const barChartData = metricsArray.map(metric => {
             const dataPoint = { name: metric };
             selectedForms.forEach(form => {
@@ -315,29 +228,14 @@ const AdminVisualization = () => {
             });
             return dataPoint;
         });
-
         setBarChartData(barChartData);
-
-      } else {
-          // Clear charts for unsupported or multi-intern/multi-form case
-          setRadarData([]);
-          setLineChartData([]);
-          setBarChartData([]);
-      }
-      
-    } catch (error) {
-      console.error('Error fetching/processing evaluation data:', error);
-    } finally {
-      setLoading(false);
-    }
+      } else { setRadarData([]); setLineChartData([]); setBarChartData([]); }
+    } catch (error) { console.error('Error fetching/processing data:', error); } finally { setLoading(false); }
   };
 
-  // --- UI SORTING ---
   const requestSort = (key) => {
     let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
     setSortConfig({ key, direction });
   };
 
@@ -346,303 +244,258 @@ const AdminVisualization = () => {
     if (sortConfig.key) {
       sortableItems.sort((a, b) => {
         if (typeof a[sortConfig.key] === 'number' && typeof b[sortConfig.key] === 'number') {
-            if (a[sortConfig.key] < b[sortConfig.key]) {
-              return sortConfig.direction === 'ascending' ? -1 : 1;
-            }
-            if (a[sortConfig.key] > b[sortConfig.key]) {
-              return sortConfig.direction === 'ascending' ? 1 : -1;
-            }
+            return sortConfig.direction === 'ascending' ? a[sortConfig.key] - b[sortConfig.key] : b[sortConfig.key] - a[sortConfig.key];
         }
-        if (String(a[sortConfig.key]) < String(b[sortConfig.key])) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (String(a[sortConfig.key]) > String(b[sortConfig.key])) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
-        return 0;
+        return sortConfig.direction === 'ascending' ? String(a[sortConfig.key]).localeCompare(String(b[sortConfig.key])) : String(b[sortConfig.key]).localeCompare(String(a[sortConfig.key]));
       });
     }
     return sortableItems;
   }, [tableData, sortConfig]);
 
-  // --- RENDER HELPERS ---
-  const renderTable = () => {
+  const renderVisualizationTable = () => {
     if (tableData.length === 0) return null;
-    
     const headers = [];
-    if (selectedForms.length > 1) {
-        headers.push({ key: 'formName', label: 'Form' });
-    }
-    if (selectedInterns.length >= 1) {
-        headers.push({ key: 'internName', label: 'Intern' });
-    } 
-    
+    if (selectedForms.length > 1) headers.push({ key: 'formName', label: 'Form' });
+    if (selectedInterns.length >= 1) headers.push({ key: 'internName', label: 'Intern' });
     headers.push(...dataMetrics.map(m => ({ key: m, label: m })));
-
-    const getSortIcon = (key) => {
-        if (sortConfig.key !== key) return null;
-        return sortConfig.direction === 'ascending' ? '▲' : '▼';
-    };
-
+    if (metricLevel === 'Main Metric') headers.push({ key: 'finalGrade', label: 'Final Grade'});
+    const getSortIcon = (key) => sortConfig.key !== key ? null : (sortConfig.direction === 'ascending' ? '▲' : '▼');
     return (
       <div className="data-table-container">
-        <h3>Evaluation Data Table ({metricLevel})</h3>
+        <h3>Evaluation Data Table (Normalized 0-10)</h3>
         <table className="data-table">
+          <thead><tr>{headers.map(header => <th key={header.key} onClick={() => requestSort(header.key)}>{header.label} <span className="sort-icon">{getSortIcon(header.key)}</span></th>)}</tr></thead>
+          <tbody>{sortedTableData.map((row, i) => <tr key={i}>{headers.map(header => <td key={header.key}>{typeof row[header.key] === 'number' ? parseFloat(row[header.key]).toFixed(2) : row[header.key]}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderRadarChart = () => {
+      const numForms = selectedForms.length; const numInterns = selectedInterns.length;
+      if ((numForms === 1 && numInterns === 1) || (numForms > 1 && numInterns === 1)) {
+          const title = numForms === 1 ? `Radar: ${selectedForms[0].value}` : `Radar by Form: ${selectedInterns[0].name}`;
+          const chartDataSets = numForms === 1 ? [{ title: selectedInterns[0].name, data: radarData }] : radarData;
+          return (
+              <div className="chart-container"><h3>{title}</h3><div className="radar-charts-section">
+                  {chartDataSets.map((chart, i) => (
+                    <div key={chart.title} className="radar-chart-card"><h4>{chart.title}</h4>
+                      <ResponsiveContainer width="100%" height={300}><RadarChart outerRadius="70%" data={chart.data}><PolarGrid stroke="#e0e0e0" /><PolarAngleAxis dataKey="subject" stroke="#333" tick={renderCustomRadarTick} /><Tooltip content={<CustomTooltip />} /><Radar name={chart.title} dataKey={numForms === 1 ? selectedInterns[0].name : 'score'} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.6} />{numForms === 1 && <Legend />}</RadarChart></ResponsiveContainer>
+                    </div>))}</div></div>
+          );
+      }
+      return null;
+  };
+
+  const renderGroupedCharts = () => {
+    const numForms = selectedForms.length; const numInterns = selectedInterns.length;
+    if (numForms === 1 && numInterns > 1 && barChartData.length > 0) {
+        return (<div className="chart-container"><h3>Grouped Bar Chart</h3><ResponsiveContainer width="100%" height={400}><BarChart data={barChartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" angle={-30} textAnchor="end" height={80} interval={0} stroke="#333" /><YAxis domain={[0, 10]} /><Tooltip content={<CustomTooltip />} /><Legend />{selectedInterns.map((intern, i) => <Bar key={intern.name} dataKey={intern.name} fill={COLORS[i % COLORS.length]} />)}</BarChart></ResponsiveContainer></div>);
+    } 
+    if (numForms > 1 && numInterns > 1 && barChartData.length > 0) {
+        return (<div className="chart-container"><h3>Average Score Comparison</h3><ResponsiveContainer width="100%" height={400}><BarChart data={barChartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" angle={-30} textAnchor="end" height={80} interval={0} stroke="#333" /><YAxis domain={[0, 10]} /><Tooltip content={<CustomTooltip />} /><Legend />{selectedForms.map((form, i) => <Bar key={form.value} dataKey={form.value} fill={COLORS[i % COLORS.length]} />)}</BarChart></ResponsiveContainer></div>);
+    }
+    return null;
+  };
+
+  const renderLineChart = () => {
+      if (metricLevel === 'Sub Metric') return null;
+      if (selectedForms.length > 1 && selectedInterns.length === 1 && lineChartData.length > 0) {
+        return (<div className="chart-container"><h3>Progress Trend</h3><ResponsiveContainer width="100%" height={300}><LineChart data={lineChartData} margin={{ top: 15, right: 20, left: 10, bottom: 50 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" angle={-30} textAnchor="end" height={80} /><YAxis domain={[0, 10]} /><Tooltip content={<CustomTooltip />} /><Legend />{dataMetrics.map((key, i) => <Line key={key} type="monotone" dataKey={key} stroke={COLORS[i % COLORS.length]} />)}</LineChart></ResponsiveContainer></div>);
+      }
+      return null;
+  };
+
+  // --- LOGIC TAB 2 (RANKING) ---
+  const filteredAndSortedStudents = useMemo(() => {
+    let processed = [...studentsData];
+    if (selectedStudentFilter) {
+      processed = processed.filter(s => s.id === selectedStudentFilter.value);
+    }
+    processed.sort((a, b) => {
+      const metric = selectedMetricSort.value;
+      const scoreA = metric === 'averageScore' ? a.averageScore : (a.metricScores[metric] || 0);
+      const scoreB = metric === 'averageScore' ? b.averageScore : (b.metricScores[metric] || 0);
+      return scoreB - scoreA; 
+    });
+    return processed.map((s, index) => ({ ...s, currentRank: index + 1 }));
+  }, [studentsData, selectedStudentFilter, selectedMetricSort]);
+
+  const metricOptions = useMemo(() => {
+    const base = [{ value: 'averageScore', label: 'Average Final Score' }];
+    const mainOptions = MAIN_METRICS.map(m => ({ value: m, label: m }));
+    
+    const customMetrics = new Set();
+    if (studentsData.length > 0) {
+        studentsData.forEach(s => Object.keys(s.metricScores).forEach(k => {
+            if (!MAIN_METRICS.includes(k)) customMetrics.add(k);
+        }));
+    }
+    const customOptions = Array.from(customMetrics).map(m => ({ value: m, label: m }));
+    
+    return [...base, ...mainOptions, ...customOptions];
+  }, [studentsData]);
+
+  // --- STUDENT DETAIL PANEL (UPDATED) ---
+  const StudentDetailView = ({ student, selectedMetric }) => {
+    if (!student) return null;
+
+    const isOverall = selectedMetric.value === 'averageScore';
+    const metricLabel = isOverall ? 'Overall' : selectedMetric.label;
+    
+    // Determine top card display values
+    const displayAvgScore = isOverall 
+        ? student.averageScore 
+        : (student.metricScores[selectedMetric.value] || 0);
+
+    return (
+      <div className="student-detail-panel">
+        <div className="detail-header"><h3>🎓 {student.name} - Report Card</h3><button className="close-btn" onClick={() => setSelectedStudentId(null)}>Close</button></div>
+        <div className="detail-summary">
+          <div className="summary-card">
+              <span>Rank ({metricLabel})</span>
+              <strong>#{student.currentRank}</strong>
+          </div>
+          <div className="summary-card">
+              <span>Avg Score ({metricLabel})</span>
+              <strong style={{ color: getScoreColor(displayAvgScore) }}>{displayAvgScore}</strong>
+          </div>
+          <div className="summary-card"><span>Forms</span><strong>{student.totalForms}</strong></div>
+        </div>
+        
+        <h4>📋 Evaluation History ({metricLabel})</h4>
+        <table className="history-table">
           <thead>
-            <tr>
-              {headers.map(header => (
-                <th key={header.key} onClick={() => requestSort(header.key)}>
-                  {header.label}
-                  <span className="sort-icon">{getSortIcon(header.key)}</span>
-                </th>
-              ))}
-            </tr>
+              <tr>
+                  <th>Form Name</th>
+                  <th>Date</th>
+                  <th>Grade</th>
+                  <th>Score</th>
+              </tr>
           </thead>
           <tbody>
-            {sortedTableData.map((row, i) => (
-              <tr key={i}>
-                {headers.map(header => (
-                  <td key={header.key}>
-                    {typeof row[header.key] === 'number' 
-                        ? parseFloat(row[header.key]).toFixed(2) 
-                        : row[header.key]}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {student.evaluations.map((ev, idx) => {
+                // Logic to find specific score if a metric is selected
+                let displayScore = 0;
+                let displayGrade = 'N/A';
+
+                if (isOverall) {
+                    displayScore = parseFloat(ev.finalScore);
+                    displayGrade = ev.finalGrade;
+                } else {
+                    // Find the specific field score
+                    const field = ev.fieldScores.find(f => f.fieldName === selectedMetric.value);
+                    displayScore = field ? field.score : 0;
+                    displayGrade = getGradeLabel(displayScore);
+                }
+
+                return (
+                  <tr key={idx}>
+                    <td>{ev.formName}</td>
+                    <td>{new Date(ev.date).toLocaleDateString()}</td>
+                    <td><span className={`badge badge-${displayGrade.toLowerCase().replace(/\s+/g, '-')}`}>{displayGrade}</span></td>
+                    <td><strong>{displayScore.toFixed(2)}</strong></td>
+                  </tr>
+                );
+            })}
           </tbody>
         </table>
       </div>
     );
   };
-  
-  const renderRadarChart = () => {
-      const numForms = selectedForms.length;
-      const numInterns = selectedInterns.length;
-      
-      if ((numForms === 1 && numInterns === 1) || (numForms > 1 && numInterns === 1)) {
-          // Case 1 (Single Radar) or Case 3 (Multiple Radars)
-          const title = numForms === 1 
-            ? `Performance Radar: ${selectedForms[0].value} (${metricLevel})` 
-            : `Performance Radar by Form (Intern: ${selectedInterns[0].name}) (${metricLevel})`;
 
-          const chartDataSets = numForms === 1 ? [{ title: selectedInterns[0].name, data: radarData }] : radarData;
-          const legendKey = numForms === 1 ? selectedInterns[0].name : 'score';
-
-
-          return (
-              <div className="chart-container">
-                <h3>{title}</h3>
-                <div className="radar-charts-section">
-                  {chartDataSets.map((chart, i) => (
-                    <div key={chart.title} className="radar-chart-card">
-                      <h4>{chart.title}</h4>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <RadarChart outerRadius="70%" data={chart.data}>
-                          <PolarGrid stroke="#e0e0e0" />
-                          <PolarAngleAxis 
-                              dataKey="subject" 
-                              stroke="#333" 
-                              tick={renderCustomRadarTick} // Apply custom coloring function
-                          />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Radar 
-                              name={chart.title} 
-                              dataKey={legendKey} 
-                              stroke={COLORS[i % COLORS.length]} 
-                              fill={COLORS[i % COLORS.length]} 
-                              fillOpacity={0.6} 
-                          />
-                          {numForms === 1 && <Legend />}
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ))}
-                </div>
-              </div>
-          );
-      }
-      return null;
-  };
-  
-  const renderGroupedCharts = () => {
-    const numForms = selectedForms.length;
-    const numInterns = selectedInterns.length;
-    
-    if (numForms === 1 && numInterns > 1 && barChartData.length > 0) {
-        // Grouped Bar Chart (Case 2: Compare multiple interns on one form)
-        const internNames = selectedInterns.map(i => i.name);
-        return (
-            <div className="chart-container">
-              <h3>Grouped Bar Chart: Intern Comparison on {selectedForms[0].value} ({metricLevel})</h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={barChartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-30} textAnchor="end" height={80} interval={0} stroke="#333" />
-                  <YAxis domain={[0, 10]} stroke="#333" unit="/10" />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  {internNames.map((name, i) => (
-                    <Bar key={name} dataKey={name} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-        );
-    } 
-    
-    if (numForms > 1 && numInterns > 1 && barChartData.length > 0) {
-        // Average Score Comparison Chart (Case 4: Multiple Forms + Multiple Interns)
-        const formNames = selectedForms.map(f => f.value);
-        return (
-            <div className="chart-container">
-                <h3>Average Score Comparison Chart ({metricLevel})</h3>
-                <p className="message-info" style={{margin: '10px 0'}}>
-                    Shows the **average score** for each metric, aggregated across the selected interns, for each selected form.
-                </p>
-                <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={barChartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-30} textAnchor="end" height={80} interval={0} stroke="#333" />
-                        <YAxis domain={[0, 10]} stroke="#333" unit="/10" />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend />
-                        {formNames.map((name, i) => (
-                            <Bar key={name} dataKey={name} fill={COLORS[i % COLORS.length]} />
-                        ))}
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    }
-    
-    return null;
-  }
-  
-  const renderLineChart = () => {
-      const numForms = selectedForms.length;
-      const numInterns = selectedInterns.length;
-
-      // Suppress Line Chart if Sub Metric is selected
-      if (metricLevel === 'Sub Metric') return null;
-      
-      if (numForms > 1 && numInterns === 1 && lineChartData.length > 0) {
-        // Line Chart (Case 3: Trend over Forms)
-        
-        const lineKeys = dataMetrics;
-
-        return (
-            <div className="chart-container">
-              <h3>Progress Trend Across Forms (Intern: {selectedInterns[0].name})</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={lineChartData} margin={{ top: 15, right: 20, left: 10, bottom: 50 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                  <XAxis dataKey="name" stroke="#333" angle={-30} textAnchor="end" height={80} interval={0} />
-                  <YAxis domain={[0, 10]} stroke="#333" unit="/10" />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  {lineKeys.map((key, i) => (
-                    <Line
-                      key={key}
-                      type="monotone"
-                      dataKey={key}
-                      stroke={COLORS[i % COLORS.length]}
-                      activeDot={{ r: 5 }}
-                      name={key}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-        );
-      }
-      return null;
-  };
-
-
-  // --- MAIN RENDER ---
   const isCase2 = selectedForms.length === 1 && selectedInterns.length > 1;
   const isCase4 = selectedForms.length > 1 && selectedInterns.length > 1;
-
 
   return (
     <div className="visualization-page">
       <div className="vis-header">
-        <h1>Evaluation Visualizations 📊</h1>
-        <button onClick={() => navigate('/admin')} className="apply-btn" style={{ maxWidth: '200px', margin: '10px auto', backgroundColor: '#3498db' }}>
-          ← Back to Dashboard
-        </button>
+        <div className="header-top"><h1>📊 Analytics Dashboard</h1><button onClick={() => navigate('/admin')} className="apply-btn" style={{ maxWidth: '200px', marginLeft: 'auto', backgroundColor: '#3498db' }}>← Dashboard</button></div>
+        <div className="view-tabs">
+          <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
+          <button className={`tab-toggle ${activeTab === 'ranking' ? 'active' : ''}`} onClick={() => setActiveTab('ranking')}>🏆 Rankings & Details</button>
+        </div>
       </div>
 
-      {/* 1. Filter Section */}
-      <div className="filter-section">
-        <div className="filter-group">
-          <label>Form Selector (Multi-select) *</label>
-          <Select
-            options={allForms}
-            isMulti
-            onChange={setSelectedForms}
-            placeholder="Select evaluation forms..."
-            value={selectedForms}
-          />
+      {loading && <div className="loading-spinner">Processing Data...</div>}
+
+      {/* TAB 1: VISUALIZATIONS */}
+      {!loading && activeTab === 'visualization' && (
+        <div className="filter-section-wrapper">
+            <div className="filter-section">
+                <div className="filter-group"><label>Form Selector *</label><Select options={allForms} isMulti onChange={setSelectedForms} placeholder="Select forms..." value={selectedForms} /></div>
+                <div className="filter-group"><label>Intern Selector *</label><Select options={allInterns} isMulti onChange={setSelectedInterns} placeholder="Select interns..." value={selectedInterns} /></div>
+                <div className="filter-group"><label>Metric Level</label><Select options={[{ value: 'Main Metric', label: 'Main Metric' }, { value: 'Sub Metric', label: 'Sub Metric' }]} defaultValue={{ value: metricLevel, label: 'Main Metric' }} onChange={(option) => setMetricLevel(option.value)} /></div>
+                <button className="apply-btn" onClick={handleApplyFilters} disabled={loading || selectedForms.length === 0 || selectedInterns.length === 0}>Apply Filters</button>
+            </div>
+            {!loading && tableData.length > 0 && <div className="visualization-content">{renderVisualizationTable()}{renderGroupedCharts()}{renderLineChart()}{renderRadarChart()}{(isCase2 || isCase4) && <div className="message-info">ℹ️ Radar and Line charts are hidden for multi-select comparisons.</div>}</div>}
+            {!loading && tableData.length === 0 && (selectedForms.length > 0 || selectedInterns.length > 0) && <div className="message-info">No data found for selection.</div>}
         </div>
-
-        <div className="filter-group">
-          <label>Intern Selector (Multi-select) *</label>
-          <Select
-            options={allInterns}
-            isMulti
-            onChange={setSelectedInterns}
-            placeholder="Select interns..."
-            value={selectedInterns}
-          />
-        </div>
-
-        <div className="filter-group">
-          <label>Metric Level</label>
-          <Select
-            options={[
-              { value: 'Main Metric', label: 'Main Metric (Avg. Score)' },
-              { value: 'Sub Metric', label: 'Sub Metric (Detailed Score)' },
-            ]}
-            defaultValue={{ value: metricLevel, label: metricLevel }}
-            onChange={(option) => setMetricLevel(option.value)}
-          />
-        </div>
-
-        <button className="apply-btn" onClick={handleApplyFilters} disabled={loading || selectedForms.length === 0 || selectedInterns.length === 0}>
-          {loading ? 'Loading...' : 'Apply Filters'}
-        </button>
-      </div>
-
-      {loading && <div className="loading-spinner">Fetching data and building charts...</div>}
-      
-      {!loading && tableData.length === 0 && (selectedForms.length > 0 || selectedInterns.length > 0) && (
-        <div className="message-info">No evaluation data found for the selected filters or invalid combination.</div>
       )}
 
-      {/* 2. Visualization Content */}
-      {!loading && tableData.length > 0 && (
-        <div className="visualization-content">
-          
-          {/* Table Data Section */}
-          {renderTable()}
-          
-          {/* Grouped Bar Chart / Average Score Comparison Chart (Case 2 & Case 4) */}
-          {renderGroupedCharts()}
-          
-          {/* Line Chart Section (Case 3 only) */}
-          {renderLineChart()}
-          
-          {/* Radar Chart Section (Case 1 & Case 3) */}
-          {renderRadarChart()}
-          
-          {(isCase2 || isCase4) && (
-            <div className="message-info">
-                ℹ️ Radar and Line charts are shown only for single intern analysis (Case 1 & 3). For multi-intern/multi-form comparison, see the Bar Charts and Table.
+      {/* TAB 2: RANKING */}
+      {!loading && activeTab === 'ranking' && (
+        <div className="ranking-content">
+          <div className="ranking-controls">
+            <div className="control-group" style={{ minWidth: '300px' }}>
+                <Select 
+                    options={allInterns} 
+                    value={selectedStudentFilter}
+                    onChange={setSelectedStudentFilter}
+                    placeholder="🔍 Select or Search Student..."
+                    isClearable={true}
+                />
             </div>
-          )}
-          
+            <div className="control-group" style={{ minWidth: '250px' }}>
+                <Select options={metricOptions} value={selectedMetricSort} onChange={setSelectedMetricSort} placeholder="Sort by Metric..." />
+            </div>
+            <button className="export-btn" onClick={() => exportToCSV(filteredAndSortedStudents, 'rankings.csv')}>📥 Export CSV</button>
+          </div>
+
+          <div className="ranking-layout">
+            <div className="ranking-table-container">
+              <table className="ranking-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Student Name</th>
+                        {/* Dynamic Header */}
+                        <th>{selectedMetricSort.label === 'Average Final Score' ? 'Avg Score' : selectedMetricSort.label}</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                  {filteredAndSortedStudents.map((student) => {
+                    // Calculate display score based on selection
+                    const displayScore = selectedMetricSort.value === 'averageScore' 
+                        ? student.averageScore 
+                        : (student.metricScores[selectedMetricSort.value] || 0);
+
+                    return (
+                    <tr key={student.id} className={selectedStudentId === student.id ? 'selected-row' : ''} onClick={() => setSelectedStudentId(student.id)}>
+                      <td className="rank-cell">#{student.currentRank}</td>
+                      <td><div className="student-name">{student.name}</div><div className="student-email">{student.email}</div></td>
+                      <td>
+                          <span className="score-badge" style={{ backgroundColor: getScoreColor(displayScore) }}>
+                              {displayScore}
+                          </span>
+                      </td>
+                      <td><button className="view-btn">View Details</button></td>
+                    </tr>
+                  )})}
+                </tbody>
+              </table>
+            </div>
+            
+            {selectedStudentId && (
+              <div className="detail-view-wrapper">
+                <StudentDetailView 
+                    student={filteredAndSortedStudents.find(s => s.id === selectedStudentId)} 
+                    selectedMetric={selectedMetricSort} // Pass the selected metric to the detail view
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

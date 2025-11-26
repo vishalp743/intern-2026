@@ -6,14 +6,17 @@ import './AdminDashboard.css';
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('users');
   const [formName, setFormName] = useState('');
+  
+  // Default state kept as requested, but we will filter empty ones on submit
   const [customFields, setCustomFields] = useState([
     {
       fieldName: '',
       minValue: 0,
-      maxValue: 10,
+      maxValue: 15, 
       subFields: [
-        { subFieldName: '', minValue: 0, maxValue: 10 },
-        { subFieldName: '', minValue: 0, maxValue: 10 },
+        { subFieldName: '', minValue: 0, maxValue: 5 }, 
+        { subFieldName: '', minValue: 0, maxValue: 5 },
+        { subFieldName: '', minValue: 0, maxValue: 5 },
       ],
     },
   ]);
@@ -37,7 +40,21 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate(); 
+
+  // --- Logout Function ---
+  const handleLogout = async () => {
+    if (window.confirm('Are you sure you want to log out?')) {
+      try {
+        await api.post('/auth/logout');
+      } catch (error) {
+        console.error("Logout failed on server, but logging out client-side.", error);
+      } finally {
+        localStorage.removeItem('token');
+        navigate('/');
+      }
+    }
+  };
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -137,10 +154,11 @@ const AdminDashboard = () => {
       {
         fieldName: '',
         minValue: 0,
-        maxValue: 10,
+        maxValue: 15,
         subFields: [
-          { subFieldName: '', minValue: 0, maxValue: 10 },
-          { subFieldName: '', minValue: 0, maxValue: 10 },
+          { subFieldName: '', minValue: 0, maxValue: 5 },
+          { subFieldName: '', minValue: 0, maxValue: 5 },
+          { subFieldName: '', minValue: 0, maxValue: 5 },
         ],
       },
     ]);
@@ -163,7 +181,7 @@ const AdminDashboard = () => {
     values[fieldIndex].subFields.push({
       subFieldName: '',
       minValue: 0,
-      maxValue: 10,
+      maxValue: 5,
     });
     setCustomFields(values);
   };
@@ -188,9 +206,12 @@ const AdminDashboard = () => {
 
     setLoading(true);
     try {
+      // Filter out custom fields that have no name (since the UI is hidden, default state is empty)
+      const validCustomFields = customFields.filter(field => field.fieldName.trim() !== '');
+
       const newForm = {
         formName,
-        customFields,
+        customFields: validCustomFields,
         status: 'Active',
         tutor: selectedTutor,
       };
@@ -198,14 +219,17 @@ const AdminDashboard = () => {
       showMessage('success', `Form "${response.data.formName}" created for selected tutor!`);
       setFormName('');
       setSelectedTutor('');
+      
+      // Reset custom fields
       setCustomFields([
         {
           fieldName: '',
           minValue: 0,
-          maxValue: 10,
+          maxValue: 15,
           subFields: [
-            { subFieldName: '', minValue: 0, maxValue: 10 },
-            { subFieldName: '', minValue: 0, maxValue: 10 },
+            { subFieldName: '', minValue: 0, maxValue: 5 },
+            { subFieldName: '', minValue: 0, maxValue: 5 },
+            { subFieldName: '', minValue: 0, maxValue: 5 },
           ],
         },
       ]);
@@ -224,306 +248,348 @@ const AdminDashboard = () => {
 
   // ========== RENDER ==========
   return (
-    <div className="admin-dashboard">
-      <div className="dashboard-header">
-        <h1>Admin Dashboard</h1>
-        <p>Manage users and create evaluation forms</p>
-      </div>
-
-      {message.text && (
-        <div className={`message-alert message-${message.type}`}>
-          {message.text}
+    <div className="">
+      {/* --- Navigation Bar --- */}
+      <nav className="navbar">
+        <div className="navbar-left">
+          <h2 className="nav-title">Intern Evaluation Portal - Admin</h2>
         </div>
-      )}
+        <div className="navbar-right">
+          <button className="nav-btn" onClick={() => setActiveTab('users')}>
+            Dashboard
+          </button>
+          <button className="logout-btn" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      </nav>
 
-      {/* Tabs */}
-      <div className="tabs-container">
-        <button
-          className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
-        >
-          👥 Manage Users
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'interns' ? 'active' : ''}`}
-          onClick={() => setActiveTab('interns')}
-        >
-          🎓 Manage Interns
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'forms' ? 'active' : ''}`}
-          onClick={() => setActiveTab('forms')}
-        >
-          📋 Create Forms
-        </button>
-      </div>
+      <div className="admin-dashboard">
+        <div className="dashboard-header">
+          <h1>Admin Dashboard</h1>
+          <p>Manage users and create evaluation forms</p>
+        </div>
 
-      {/* ========== USERS TAB ========== */}
-      {activeTab === 'users' && (
-        <div className="tab-content">
-          <div className="form-card">
-            <h2>Add New User</h2>
-            <form onSubmit={handleAddUser}>
-              <div className="form-group">
-                <label htmlFor="userName">Full Name *</label>
-                <input
-                  id="userName"
-                  type="text"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                  placeholder="Enter full name"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="userEmail">Email Address *</label>
-                <input
-                  id="userEmail"
-                  type="email"
-                  value={userEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                  placeholder="Enter email address"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="userPassword">Password *</label>
-                <input
-                  id="userPassword"
-                  type="password"
-                  value={userPassword}
-                  onChange={(e) => setUserPassword(e.target.value)}
-                  placeholder="Enter password"
-                  required
-                  minLength="6"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="userRole">User Role *</label>
-                <select
-                  id="userRole"
-                  value={userRole}
-                  onChange={(e) => setUserRole(e.target.value)}
-                >
-                  <option value="Tutor">Tutor</option>
-                </select>
-              </div>
-
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? 'Creating...' : 'Create User'}
-              </button>
-            </form>
+        {message.text && (
+          <div className={`message-alert message-${message.type}`}>
+            {message.text}
           </div>
+        )}
+
+        {/* Tabs */}
+        <div className="tabs-container">
+          <button
+            className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveTab('users')}
+          >
+            👥 Manage Users
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'interns' ? 'active' : ''}`}
+            onClick={() => setActiveTab('interns')}
+          >
+            🎓 Manage Interns
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'forms' ? 'active' : ''}`}
+            onClick={() => setActiveTab('forms')}
+          >
+            📋 Create Forms
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'visualizations' ? 'active' : ''}`}
+            onClick={() => setActiveTab('visualizations')}
+          >
+            📊 Visualizations
+          </button>
         </div>
-      )}
 
-      {/* ========== INTERNS TAB ========== */}
-      {activeTab === 'interns' && (
-        <div className="tab-content">
-          <div className="form-card">
-            <h2>Add New Intern</h2>
-            <form onSubmit={handleAddIntern}>
-              <div className="form-group">
-                <label htmlFor="internName">Intern Name *</label>
-                <input
-                  id="internName"
-                  type="text"
-                  value={internName}
-                  onChange={(e) => setInternName(e.target.value)}
-                  placeholder="Enter intern name"
-                  required
-                />
-              </div>
+        {/* ========== USERS TAB ========== */}
+        {activeTab === 'users' && (
+          <div className="tab-content">
+            <div className="form-card">
+              <h2>Add New User</h2>
+              <form onSubmit={handleAddUser}>
+                <div className="form-group">
+                  <label htmlFor="userName">Full Name *</label>
+                  <input
+                    id="userName"
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="Enter full name"
+                    required
+                  />
+                </div>
 
-              <div className="form-group">
-                <label htmlFor="internEmail">Email Address *</label>
-                <input
-                  id="internEmail"
-                  type="email"
-                  value={internEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                  placeholder="Enter email address"
-                  required
-                />
-              </div>
+                <div className="form-group">
+                  <label htmlFor="userEmail">Email Address *</label>
+                  <input
+                    id="userEmail"
+                    type="email"
+                    value={userEmail}
+                    onChange={(e) => setUserEmail(e.target.value)}
+                    placeholder="Enter email address"
+                    required
+                  />
+                </div>
 
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? 'Adding...' : 'Add Intern'}
-              </button>
-            </form>
+                <div className="form-group">
+                  <label htmlFor="userPassword">Password *</label>
+                  <input
+                    id="userPassword"
+                    type="password"
+                    value={userPassword}
+                    onChange={(e) => setUserPassword(e.target.value)}
+                    placeholder="Enter password"
+                    required
+                    minLength="6"
+                  />
+                </div>
 
-            <div className="interns-list-section">
-              <h3>Current Interns</h3>
-              {interns.length === 0 ? (
-                <p className="empty-message">No interns added yet</p>
-              ) : (
-                <table className="interns-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {interns.map((intern) => (
-                      <tr key={intern._id}>
-                        <td>{intern.name}</td>
-                        <td>{intern.email}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-delete-small"
-                            onClick={() => handleDeleteIntern(intern._id)}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                <div className="form-group">
+                  <label htmlFor="userRole">User Role *</label>
+                  <select
+                    id="userRole"
+                    value={userRole}
+                    onChange={(e) => setUserRole(e.target.value)}
+                  >
+                    <option value="Tutor">Tutor</option>
+                  </select>
+                </div>
+
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Creating...' : 'Create User'}
+                </button>
+              </form>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ========== FORM CREATION TAB ========== */}
-      {activeTab === 'forms' && (
-        <div className="tab-content">
-          <div className="form-card">
-            <h2>Create Evaluation Form</h2>
-            <form onSubmit={handleSubmitForm}>
-              <div className="form-group">
-                <label htmlFor="formName">Form Name *</label>
-                <input
-                  id="formName"
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Enter form name"
-                  required
-                />
-              </div>
+        {/* ========== INTERNS TAB ========== */}
+        {activeTab === 'interns' && (
+          <div className="tab-content">
+            <div className="form-card">
+              <h2>Add New Intern</h2>
+              <form onSubmit={handleAddIntern}>
+                <div className="form-group">
+                  <label htmlFor="internName">Intern Name *</label>
+                  <input
+                    id="internName"
+                    type="text"
+                    value={internName}
+                    onChange={(e) => setInternName(e.target.value)}
+                    placeholder="Enter intern name"
+                    required
+                  />
+                </div>
 
-              <div className="form-group">
-                <label htmlFor="tutorSelect">Assign to Tutor *</label>
-                <select
-                  id="tutorSelect"
-                  required
-                  value={selectedTutor}
-                  onChange={(e) => setSelectedTutor(e.target.value)}
-                >
-                  <option value="">-- Select Tutor --</option>
-                  {tutors.map((tutor) => (
-                    <option key={tutor._id} value={tutor._id}>
-                      {tutor.name} ({tutor.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div className="form-group">
+                  <label htmlFor="internEmail">Email Address *</label>
+                  <input
+                    id="internEmail"
+                    type="email"
+                    value={internEmail}
+                    onChange={(e) => setInternEmail(e.target.value)}
+                    placeholder="Enter email address"
+                    required
+                  />
+                </div>
 
-              <div className="section-divider">
-                <h3>📌 Standard Fields</h3>
-                <p className="section-info">
-                  These 5 default metrics include 4 sub-standards each.
-                </p>
-              </div>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Adding...' : 'Add Intern'}
+                </button>
+              </form>
 
-              {/* Custom Fields Section */}
-              <div className="section-divider">
-                <h3>➕ Custom Fields</h3>
-                <p className="section-info">
-                  Add custom fields with optional sub-fields.
-                </p>
-
-                {customFields.map((field, fieldIndex) => (
-                  <div key={fieldIndex} className="custom-field-container">
-                    <div className="custom-field-header">
-                      <input
-                        type="text"
-                        placeholder="Field Name"
-                        name="fieldName"
-                        value={field.fieldName}
-                        onChange={(event) => handleFieldChange(fieldIndex, event)}
-                      />
-                      <button
-                        type="button"
-                        className="btn-remove"
-                        onClick={() => handleRemoveField(fieldIndex)}
-                      >
-                        ✕ Remove
-                      </button>
-                    </div>
-
-                    <div className="sub-fields-section">
-                      <label className="sub-fields-label">Sub-fields (Optional):</label>
-                      {field.subFields &&
-                        field.subFields.map((subField, subIndex) => (
-                          <div key={subIndex} className="sub-field">
-                            <input
-                              type="text"
-                              placeholder="Sub-field Name"
-                              name="subFieldName"
-                              value={subField.subFieldName}
-                              onChange={(event) =>
-                                handleSubFieldChange(fieldIndex, subIndex, event)
-                              }
-                            />
+              <div className="interns-list-section">
+                <h3>Current Interns</h3>
+                {interns.length === 0 ? (
+                  <p className="empty-message">No interns added yet</p>
+                ) : (
+                  <table className="interns-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {interns.map((intern) => (
+                        <tr key={intern._id}>
+                          <td>{intern.name}</td>
+                          <td>{intern.email}</td>
+                          <td>
                             <button
                               type="button"
-                              className="btn-remove-sub"
-                              onClick={() =>
-                                handleRemoveSubField(fieldIndex, subIndex)
-                              }
+                              className="btn-delete-small"
+                              onClick={() => handleDeleteIntern(intern._id)}
                             >
-                              ✕
+                              Delete
                             </button>
-                          </div>
-                        ))}
-                      <button
-                        type="button"
-                        className="btn-secondary-small"
-                        onClick={() => handleAddSubField(fieldIndex)}
-                      >
-                        + Add Sub-field
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handleAddField}
-                >
-                  + Add Custom Field
-                </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
-
-              <div className="form-actions" style={{ display: 'flex', gap: '15px' }}>
-                <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? 'Creating...' : 'Create Form'}
-                </button>
-
-                {/* NEW: View Visualizations button opens the visualization page in a new tab */}
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
-                  onClick={handleViewVisualizations}
-                  style={{ flexGrow: 1, backgroundColor: '#2ecc71', color: 'white' }}
-                >
-                  View Visualizations 📊
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ========== FORM CREATION TAB ========== */}
+        {activeTab === 'forms' && (
+          <div className="tab-content">
+            <div className="form-card">
+              <h2>Create Evaluation Form</h2>
+              <form onSubmit={handleSubmitForm}>
+                <div className="form-group">
+                  <label htmlFor="formName">Form Name *</label>
+                  <input
+                    id="formName"
+                    type="text"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="Enter form name"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="tutorSelect">Assign to Tutor *</label>
+                  <select
+                    id="tutorSelect"
+                    required
+                    value={selectedTutor}
+                    onChange={(e) => setSelectedTutor(e.target.value)}
+                  >
+                    <option value="">-- Select Tutor --</option>
+                    {tutors.map((tutor) => (
+                      <option key={tutor._id} value={tutor._id}>
+                        {tutor.name} ({tutor.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="section-divider">
+                  <h3>📌 Standard Fields</h3>
+                  <p className="section-info">
+                    These 5 default metrics include 3 sub-standards each.
+                  </p>
+                </div>
+
+                {/* Custom Fields Section - COMMENTED OUT */}
+                {/* <div className="section-divider">
+                  <h3>➕ Custom Fields</h3>
+                  <p className="section-info">
+                    Add custom fields with optional sub-fields.
+                  </p>
+
+                  {customFields.map((field, fieldIndex) => (
+                    <div key={fieldIndex} className="custom-field-container">
+                      <div className="custom-field-header">
+                        <input
+                          type="text"
+                          placeholder="Field Name"
+                          name="fieldName"
+                          value={field.fieldName}
+                          onChange={(event) => handleFieldChange(fieldIndex, event)}
+                        />
+                        <button
+                          type="button"
+                          className="btn-remove"
+                          onClick={() => handleRemoveField(fieldIndex)}
+                        >
+                          ✕ Remove
+                        </button>
+                      </div>
+
+                      <div className="sub-fields-section">
+                        <label className="sub-fields-label">Sub-fields (Optional):</label>
+                        {field.subFields &&
+                          field.subFields.map((subField, subIndex) => (
+                            <div key={subIndex} className="custom-field">
+                              <input
+                                type="text"
+                                placeholder="Sub-field Name"
+                                name="subFieldName"
+                                value={subField.subFieldName}
+                                onChange={(event) =>
+                                  handleSubFieldChange(fieldIndex, subIndex, event)
+                                }
+                              />
+                              <button
+                                type="button"
+                                className="btn-remove-sub"
+                                onClick={() =>
+                                  handleRemoveSubField(fieldIndex, subIndex)
+                                }
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        <button
+                          type="button"
+                          className="btn-secondary-small"
+                          onClick={() => handleAddSubField(fieldIndex)}
+                        >
+                          + Add Sub-field
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleAddField}
+                  >
+                    + Add Custom Field
+                  </button>
+                </div> 
+                */}
+
+                <div className="form-actions" style={{ display: 'flex', gap: '15px' }}>
+                  <button type="submit" className="btn-primary" disabled={loading}>
+                    {loading ? 'Creating...' : 'Create Form'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========== VISUALIZATIONS TAB ========== */}
+        {activeTab === 'visualizations' && (
+          <div className="tab-content">
+            <div className="form-card" style={{ textAlign: 'center', padding: '50px' }}>
+              <h2>Visualizations Dashboard</h2>
+              <p style={{ color: '#555', marginBottom: '30px' }}>
+                View detailed analytics, radar charts, and score comparisons for all interns.
+              </p>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={handleViewVisualizations}
+                style={{ 
+                  backgroundColor: '#2ecc71', 
+                  color: 'white', 
+                  maxWidth: '300px', 
+                  margin: '0 auto',
+                  fontSize: '18px',
+                  padding: '15px'
+                }}
+              >
+                View Visualizations 📊
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 };
