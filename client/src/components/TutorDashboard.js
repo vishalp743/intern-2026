@@ -10,7 +10,7 @@ const getSubScoreLabel = (score) => {
   if (numScore === 4) return 'Good';
   if (numScore === 3) return 'Average';
   if (numScore === 2) return 'Improvement required';
-  if (numScore === 1) return 'Uninterested';
+  if (numScore === 1) return 'Attention required';
   return '';
 };
 
@@ -115,12 +115,10 @@ const TutorDashboard = () => {
     }
   };
 
-  // ✅ Handle sub-field input (UPDATED LOGIC)
+  // ✅ Handle sub-field input (Updated for Radio Buttons)
   const handleSubFieldChange = (mainField, subFieldName, value) => {
     let numericValue = Number(value);
-    
-    // HARDCODED VALIDATION: Max is always 5 for sub-metrics
-    const SUB_MAX = 5;
+    const SUB_MAX = 5; // Hardcoded max per requirements
     
     if (numericValue > SUB_MAX) numericValue = SUB_MAX;
     if (numericValue < 0) numericValue = 0;
@@ -141,19 +139,14 @@ const TutorDashboard = () => {
         updated[mainField].subScores.push({ subFieldName, score: numericValue });
       }
 
-      // 1. Calculate SUM of raw sub-scores
       const sum = updated[mainField].subScores.reduce(
         (acc, s) => acc + s.score,
         0
       );
       
-      // 2. Calculate Max Possible based on number of sub-fields
-      // (e.g., 3 subfields * 5 points = 15)
       const numberOfSubFields = updated[mainField].subScores.length;
       const calculatedParentMax = numberOfSubFields * SUB_MAX;
       
-      // 3. Normalize to 0-10 scale
-      // Formula: (Sum / 15) * 10
       const normalizedScore = calculatedParentMax > 0 ? (sum / calculatedParentMax) * 10 : 0;
 
       updated[mainField].score = parseFloat(normalizedScore.toFixed(2));
@@ -161,7 +154,7 @@ const TutorDashboard = () => {
     });
   };
 
-  // ✅ Handle main field input
+  // ✅ Handle main field input (Legacy/Custom fields)
   const handleMainFieldChange = (mainField, value, maxValue) => {
     let numericValue = Number(value);
     if (numericValue > maxValue) numericValue = maxValue; 
@@ -231,36 +224,42 @@ const TutorDashboard = () => {
           {field.subFields.map((sub, subIndex) => {
             const currentSubScore = fieldScores[field.fieldName]?.subScores?.find(
               (s) => s.subFieldName === sub.subFieldName
-            )?.score ?? '';
+            )?.score || 0; // Default to 0 if undefined
 
             return (
               <div key={subIndex} className="subfield">
                 <label>{sub.subFieldName}</label>
-                <div className="subfield-input-group">
-                  <input
-                    type="number"
-                    min={0}
-                    max={5} // FORCE VISUAL MAX TO 5
-                    step="0.5"
-                    placeholder={`Enter score (0-5)`} 
-                    value={currentSubScore}
-                    onChange={(e) =>
-                      handleSubFieldChange(
-                        field.fieldName,
-                        sub.subFieldName,
-                        e.target.value
-                        // Removed outdated max value params
-                      )
-                    }
-                    required
-                  />
+                
+                {/* 🔵 REPLACED INPUT WITH RADIO BUTTONS 🔵 */}
+                <div className="radio-score-container">
+                  <div className="radio-group">
+                    {[1, 2, 3, 4, 5].map((val) => (
+                      <label 
+                        key={val} 
+                        className={`radio-option ${currentSubScore === val ? 'selected' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name={`${field.fieldName}-${sub.subFieldName}`} // Unique Name per row
+                          value={val}
+                          checked={currentSubScore === val}
+                          onChange={() => handleSubFieldChange(field.fieldName, sub.subFieldName, val)}
+                        />
+                        {val}
+                      </label>
+                    ))}
+                  </div>
+                  
+                  {/* Score Label Display */}
                   <span className="score-label">
-                    {getSubScoreLabel(currentSubScore)}
+                    {currentSubScore > 0 ? getSubScoreLabel(currentSubScore) : ''}
                   </span>
                 </div>
+
               </div>
             );
           })}
+          
           <div className="avg-score">
             <label>Total {field.fieldName} Score (Normalized 0-10)</label>
             <input
@@ -272,6 +271,7 @@ const TutorDashboard = () => {
           </div>
         </div>
       ) : (
+        /* Single Input Fallback for Custom Fields w/o subfields */
         <div className="form-field">
           <label>{field.fieldName}</label>
           <input

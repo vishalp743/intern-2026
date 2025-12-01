@@ -137,11 +137,15 @@ const AdminVisualization = () => {
   const [dataMetrics, setDataMetrics] = useState([]); 
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
-  // Ranking Tab Data
+  // Ranking & Comments Data
   const [studentsData, setStudentsData] = useState([]);
   const [selectedStudentFilter, setSelectedStudentFilter] = useState(null); 
+  const [selectedRankForm, setSelectedRankForm] = useState(null); // ✅ NEW: Selected form for ranking
   const [selectedMetricSort, setSelectedMetricSort] = useState({ value: 'averageScore', label: 'Average Final Score' });
   const [selectedStudentId, setSelectedStudentId] = useState(null);
+  
+  // Comments Tab Specific
+  const [selectedCommentStudent, setSelectedCommentStudent] = useState(null);
 
   const fetchInitialData = useCallback(async () => {
     try {
@@ -157,7 +161,8 @@ const AdminVisualization = () => {
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
 
   useEffect(() => {
-      if (activeTab === 'ranking' && studentsData.length === 0) {
+      // Fetch data for both Ranking and Comments tab if not present
+      if ((activeTab === 'ranking' || activeTab === 'comments') && studentsData.length === 0) {
           const fetchAnalytics = async () => {
               setLoading(true);
               try {
@@ -308,18 +313,50 @@ const AdminVisualization = () => {
 
   // --- LOGIC TAB 2 (RANKING) ---
   const filteredAndSortedStudents = useMemo(() => {
-    let processed = [...studentsData];
+    let processed = [];
+
+    // ✅ NEW: Logic for Form-Specific Ranking
+    if (selectedRankForm) {
+        studentsData.forEach(student => {
+            // Find the evaluation for the selected form
+            const relevantEval = student.evaluations.find(ev => ev.formName === selectedRankForm.value);
+            
+            if (relevantEval) {
+                // Transform fieldScores array into an object { "Metric Name": 9.0 }
+                const formMetricScores = {};
+                relevantEval.fieldScores.forEach(f => {
+                    formMetricScores[f.fieldName] = f.score;
+                });
+
+                processed.push({
+                    ...student,
+                    // OVERRIDE global averages with form-specific data for this view
+                    averageScore: parseFloat(relevantEval.finalScore),
+                    metricScores: formMetricScores,
+                    // Keep original history for detail view
+                });
+            }
+        });
+    } else {
+        // Default: Use Global Data
+        processed = [...studentsData];
+    }
+
+    // Filter by Student (Dropdown)
     if (selectedStudentFilter) {
       processed = processed.filter(s => s.id === selectedStudentFilter.value);
     }
+
+    // Sorting Logic
     processed.sort((a, b) => {
       const metric = selectedMetricSort.value;
       const scoreA = metric === 'averageScore' ? a.averageScore : (a.metricScores[metric] || 0);
       const scoreB = metric === 'averageScore' ? b.averageScore : (b.metricScores[metric] || 0);
       return scoreB - scoreA; 
     });
+
     return processed.map((s, index) => ({ ...s, currentRank: index + 1 }));
-  }, [studentsData, selectedStudentFilter, selectedMetricSort]);
+  }, [studentsData, selectedStudentFilter, selectedMetricSort, selectedRankForm]); // Dependency on selectedRankForm
 
   const metricOptions = useMemo(() => {
     const base = [{ value: 'averageScore', label: 'Average Final Score' }];
@@ -336,14 +373,39 @@ const AdminVisualization = () => {
     return [...base, ...mainOptions, ...customOptions];
   }, [studentsData]);
 
-  // --- STUDENT DETAIL PANEL (UPDATED) ---
+  // --- LOGIC TAB 3 (COMMENTS) ---
+  const allCommentsData = useMemo(() => {
+      const commentsList = [];
+      studentsData.forEach(student => {
+          student.evaluations.forEach(ev => {
+              commentsList.push({
+                  id: student.id + ev.formId, // pseudo unique id
+                  studentId: student.id,
+                  studentName: student.name,
+                  formName: ev.formName,
+                  date: new Date(ev.date).toLocaleDateString(),
+                  comment: ev.comment || "No comment"
+              });
+          });
+      });
+      return commentsList;
+  }, [studentsData]);
+
+  const filteredComments = useMemo(() => {
+      if (selectedCommentStudent) {
+          return allCommentsData.filter(c => c.studentId === selectedCommentStudent.value);
+      }
+      return allCommentsData;
+  }, [allCommentsData, selectedCommentStudent]);
+
+
+  // --- STUDENT DETAIL PANEL ---
   const StudentDetailView = ({ student, selectedMetric }) => {
     if (!student) return null;
 
     const isOverall = selectedMetric.value === 'averageScore';
     const metricLabel = isOverall ? 'Overall' : selectedMetric.label;
     
-    // Determine top card display values
     const displayAvgScore = isOverall 
         ? student.averageScore 
         : (student.metricScores[selectedMetric.value] || 0);
@@ -357,7 +419,7 @@ const AdminVisualization = () => {
               <strong>#{student.currentRank}</strong>
           </div>
           <div className="summary-card">
-              <span>Avg Score ({metricLabel})</span>
+              <span>Score ({metricLabel})</span>
               <strong style={{ color: getScoreColor(displayAvgScore) }}>{displayAvgScore}</strong>
           </div>
           <div className="summary-card"><span>Forms</span><strong>{student.totalForms}</strong></div>
@@ -375,7 +437,6 @@ const AdminVisualization = () => {
           </thead>
           <tbody>
             {student.evaluations.map((ev, idx) => {
-                // Logic to find specific score if a metric is selected
                 let displayScore = 0;
                 let displayGrade = 'N/A';
 
@@ -383,7 +444,6 @@ const AdminVisualization = () => {
                     displayScore = parseFloat(ev.finalScore);
                     displayGrade = ev.finalGrade;
                 } else {
-                    // Find the specific field score
                     const field = ev.fieldScores.find(f => f.fieldName === selectedMetric.value);
                     displayScore = field ? field.score : 0;
                     displayGrade = getGradeLabel(displayScore);
@@ -412,8 +472,10 @@ const AdminVisualization = () => {
       <div className="vis-header">
         <div className="header-top"><h1>📊 Analytics Dashboard</h1><button onClick={() => navigate('/admin')} className="apply-btn" style={{ maxWidth: '200px', marginLeft: 'auto', backgroundColor: '#3498db' }}>← Dashboard</button></div>
         <div className="view-tabs">
-          <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
+
           <button className={`tab-toggle ${activeTab === 'ranking' ? 'active' : ''}`} onClick={() => setActiveTab('ranking')}>🏆 Rankings & Details</button>
+          <button className={`tab-toggle ${activeTab === 'comments' ? 'active' : ''}`} onClick={() => setActiveTab('comments')}>💬 Comments</button>
+                    <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
         </div>
       </div>
 
@@ -437,11 +499,27 @@ const AdminVisualization = () => {
       {!loading && activeTab === 'ranking' && (
         <div className="ranking-content">
           <div className="ranking-controls">
+            
+            {/* ✅ NEW: Form Filter Dropdown */}
+            <div className="control-group" style={{ minWidth: '250px' }}>
+                <Select 
+                    options={allForms} // Reusing allForms list
+                    value={selectedRankForm}
+                    onChange={setSelectedRankForm}
+                    placeholder="📄 Filter by Form (Optional)"
+                    isClearable={true} // Allow clearing to go back to global rank
+                />
+            </div>
+
             <div className="control-group" style={{ minWidth: '300px' }}>
                 <Select 
                     options={allInterns} 
                     value={selectedStudentFilter}
-                    onChange={setSelectedStudentFilter}
+                    onChange={(val) => {
+                        setSelectedStudentFilter(val);
+                        // Auto-open detail view if a student is selected
+                        if (val) setSelectedStudentId(val.value);
+                    }}
                     placeholder="🔍 Select or Search Student..."
                     isClearable={true}
                 />
@@ -491,12 +569,54 @@ const AdminVisualization = () => {
               <div className="detail-view-wrapper">
                 <StudentDetailView 
                     student={filteredAndSortedStudents.find(s => s.id === selectedStudentId)} 
-                    selectedMetric={selectedMetricSort} // Pass the selected metric to the detail view
+                    selectedMetric={selectedMetricSort} 
                 />
               </div>
             )}
           </div>
         </div>
+      )}
+
+      {/* TAB 3: COMMENTS */}
+      {!loading && activeTab === 'comments' && (
+          <div className="ranking-content">
+              <div className="ranking-controls">
+                  <div className="control-group" style={{ minWidth: '350px' }}>
+                      <label style={{display:'block', marginBottom:'5px', fontWeight:'600'}}>Filter by Student:</label>
+                      <Select 
+                          options={allInterns} 
+                          value={selectedCommentStudent}
+                          onChange={setSelectedCommentStudent}
+                          placeholder="All Students"
+                          isClearable={true}
+                      />
+                  </div>
+              </div>
+              <div className="data-table-container" style={{backgroundColor:'#fff', borderRadius:'8px', overflow:'hidden'}}>
+                  <table className="ranking-table">
+                      <thead>
+                          <tr>
+                              <th style={{width:'150px'}}>Student Name</th>
+                              <th style={{width:'200px'}}>Form Name</th>
+                              <th style={{width:'100px'}}>Date</th>
+                              <th>Comment</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {filteredComments.length > 0 ? filteredComments.map((item, idx) => (
+                              <tr key={idx}>
+                                  <td><strong>{item.studentName}</strong></td>
+                                  <td>{item.formName}</td>
+                                  <td>{item.date}</td>
+                                  <td style={{lineHeight:'1.5', color:'#555'}}>{item.comment}</td>
+                              </tr>
+                          )) : (
+                              <tr><td colSpan="4" style={{textAlign:'center', padding:'30px', color:'#777'}}>No comments found.</td></tr>
+                          )}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
       )}
     </div>
   );

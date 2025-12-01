@@ -308,7 +308,7 @@ const AdminDashboard = () => {
         {activeTab === 'users' && (
           <div className="tab-content">
             <div className="form-card">
-              <h2>Add New User</h2>
+              <h2>Add New Trainer</h2>
               <form onSubmit={handleAddUser}>
                 <div className="form-group">
                   <label htmlFor="userName">Full Name *</label>

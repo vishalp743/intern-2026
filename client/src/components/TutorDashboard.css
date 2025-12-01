@@ -105,7 +105,7 @@ select:focus, input:focus, textarea:focus {
 }
 
 .subfield {
-    margin-bottom: 10px;
+    margin-bottom: 15px; /* Increased spacing */
     display: flex;
     flex-direction: column;
 }
@@ -113,26 +113,70 @@ select:focus, input:focus, textarea:focus {
 .subfield label {
     font-size: 14px;
     color: #333;
-    margin-bottom: 4px;
+    margin-bottom: 8px; /* More space for radio buttons */
+    font-weight: 500;
 }
 
-.subfield-input-group {
+/* --- NEW RADIO BUTTON STYLES --- */
+.radio-score-container {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 20px;
+    flex-wrap: wrap;
 }
 
-.subfield-input-group input {
-    flex-grow: 1;
+.radio-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 2px solid #BFBFBF; /* Nutanix Gray */
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 700;
+    color: #7f8c8d;
+    background: #fff;
+    user-select: none;
+    font-size: 14px;
+}
+
+/* Hide the actual radio input */
+.radio-option input {
+    display: none;
+}
+
+/* Hover State */
+.radio-option:hover {
+    border-color: #005FB3;
+    color: #005FB3;
+}
+
+/* Selected State */
+.radio-option.selected {
+    background-color: #005FB3; /* Nutanix Blue */
+    color: white;
+    border-color: #005FB3;
+    transform: scale(1.1);
+    box-shadow: 0 2px 5px rgba(0, 95, 179, 0.3);
 }
 
 .score-label {
-    font-size: 13px;
+    font-size: 14px;
     font-style: italic;
     color: #005FB3;
-    font-weight: 500;
+    font-weight: 600;
     min-width: 130px;
 }
+
+/* --- End Radio Styles --- */
 
 .avg-score {
     display: flex;
