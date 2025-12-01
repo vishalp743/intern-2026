@@ -1,37 +1,39 @@
-// server/server.js
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet'); // ✅ Security Headers
 const cookieParser = require('cookie-parser');
-const connectDB = require('./config/db');
-const session = require('express-session');
-const path = require('path');
+require('dotenv').config();
 
 const app = express();
-connectDB();
 
+// 1. CRITICAL SECURITY CHECK
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL ERROR: JWT_SECRET is not defined in .env");
+  process.exit(1);
+}
+
+// 2. Middleware
+app.use(helmet()); // ✅ Protects headers
+app.use(express.json());
+app.use(cookieParser());
+
+// CORS Configuration
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
-app.use(cookieParser());
 
-app.use(session({
-  secret: 'yourSecretKey',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { httpOnly: true, secure: false, sameSite: 'lax' }
-}));
+// 3. Database Connection
+const db = require('./config/db');
+db();
 
-app.get('/', (req, res) => res.send('API Running'));
-
-// Routes
+// 4. Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/forms', require('./routes/forms'));
-app.use('/api/interns', require('./routes/interns'));
-app.use('/api/evaluations', require('./routes/evaluations'));
 app.use('/api/users', require('./routes/users'));
-
+app.use('/api/interns', require('./routes/interns'));
+app.use('/api/forms', require('./routes/forms'));
+app.use('/api/evaluations', require('./routes/evaluations'));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

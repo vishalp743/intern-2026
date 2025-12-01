@@ -4,9 +4,8 @@ import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
 import TutorDashboard from './components/TutorDashboard';
 import AdminVisualization from './components/AdminVisualization';
+import AdminSetPassword from './components/AdminSetPassword'; // ✅ Import
 
-
-// Example of a simple auth check (token presence). You may replace with proper auth
 const RequireAuth = ({ children }) => {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/" replace />;
@@ -18,7 +17,11 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
-        <Route path="/admin/visualizations" element={<RequireAuth><AdminVisualization /></RequireAuth>} />
+        <Route path="/admin/visualizations" element={<RequireAuth><AdminVisualization /></RequireAuth>} /> 
+        
+        {/* ✅ NEW: Hidden Route for Password Reset */}
+        <Route path="/admin/set-password" element={<RequireAuth><AdminSetPassword /></RequireAuth>} />
+        
         <Route path="/tutor" element={<RequireAuth><TutorDashboard /></RequireAuth>} />
       </Routes>
     </Router>

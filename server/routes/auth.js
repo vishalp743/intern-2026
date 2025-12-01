@@ -2,18 +2,16 @@
 const express = require('express');
 const router = express.Router();
 const { login } = require('../controllers/authController');
+const loginLimiter = require('../middleware/loginLimiter'); // ✅ Rate Limit
+const { validateLogin } = require('../middleware/validation'); // ✅ Validation
 
 // @route   POST api/auth/login
-// @desc    Authenticate user & get simple response
+// @desc    Authenticate user & get token
 // @access  Public
-router.post('/login', login);
+router.post('/login', loginLimiter, validateLogin, login);
 
 // @route   POST api/auth/logout
-// @desc    Logs user out (client-side will clear token)
-// @access  Public
 router.post('/logout', (req, res) => {
-  // We don't need to do anything with the JWT on the server (it's stateless)
-  // But we send a confirmation response.
   res.status(200).json({ msg: 'Logout successful' });
 });
 
