@@ -23,6 +23,8 @@ const METRIC_COLOR_MAP = MAIN_METRICS.reduce((acc, metric, index) => {
     return acc;
 }, {});
 
+const SELECT_ALL_OPTION = { label: "Select All", value: "*" };
+
 // --- HELPERS ---
 const renderCustomRadarTick = (props) => {
     const { x, y, payload } = props;
@@ -140,9 +142,9 @@ const AdminVisualization = () => {
   // Ranking & Comments Data
   const [studentsData, setStudentsData] = useState([]);
   const [selectedStudentFilter, setSelectedStudentFilter] = useState(null); 
-  const [selectedRankForm, setSelectedRankForm] = useState(null); // ✅ NEW: Selected form for ranking
   const [selectedMetricSort, setSelectedMetricSort] = useState({ value: 'averageScore', label: 'Average Final Score' });
   const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedRankForm, setSelectedRankForm] = useState(null);
   
   // Comments Tab Specific
   const [selectedCommentStudent, setSelectedCommentStudent] = useState(null);
@@ -175,6 +177,17 @@ const AdminVisualization = () => {
   }, [activeTab, studentsData.length]);
 
   // --- LOGIC TAB 1 (VISUALIZATION) ---
+  
+  // Helper to handle "Select All"
+  const handleMultiChange = (selected, setFunction, allOptions) => {
+      if (selected && selected.some(option => option.value === "*")) {
+          // If "Select All" is clicked, set state to all available options
+          setFunction(allOptions);
+      } else {
+          setFunction(selected || []);
+      }
+  };
+
   const handleApplyFilters = async () => {
     if (selectedForms.length === 0 || selectedInterns.length === 0) { alert('Please select form and intern.'); return; }
     setLoading(true); setTableData([]); setRadarData([]); setLineChartData([]); setBarChartData([]); setDataMetrics([]);
@@ -315,39 +328,30 @@ const AdminVisualization = () => {
   const filteredAndSortedStudents = useMemo(() => {
     let processed = [];
 
-    // ✅ NEW: Logic for Form-Specific Ranking
+    // Logic for Form-Specific Ranking
     if (selectedRankForm) {
         studentsData.forEach(student => {
-            // Find the evaluation for the selected form
             const relevantEval = student.evaluations.find(ev => ev.formName === selectedRankForm.value);
-            
             if (relevantEval) {
-                // Transform fieldScores array into an object { "Metric Name": 9.0 }
                 const formMetricScores = {};
                 relevantEval.fieldScores.forEach(f => {
                     formMetricScores[f.fieldName] = f.score;
                 });
-
                 processed.push({
                     ...student,
-                    // OVERRIDE global averages with form-specific data for this view
                     averageScore: parseFloat(relevantEval.finalScore),
                     metricScores: formMetricScores,
-                    // Keep original history for detail view
                 });
             }
         });
     } else {
-        // Default: Use Global Data
         processed = [...studentsData];
     }
 
-    // Filter by Student (Dropdown)
     if (selectedStudentFilter) {
       processed = processed.filter(s => s.id === selectedStudentFilter.value);
     }
 
-    // Sorting Logic
     processed.sort((a, b) => {
       const metric = selectedMetricSort.value;
       const scoreA = metric === 'averageScore' ? a.averageScore : (a.metricScores[metric] || 0);
@@ -356,12 +360,11 @@ const AdminVisualization = () => {
     });
 
     return processed.map((s, index) => ({ ...s, currentRank: index + 1 }));
-  }, [studentsData, selectedStudentFilter, selectedMetricSort, selectedRankForm]); // Dependency on selectedRankForm
+  }, [studentsData, selectedStudentFilter, selectedMetricSort, selectedRankForm]);
 
   const metricOptions = useMemo(() => {
     const base = [{ value: 'averageScore', label: 'Average Final Score' }];
     const mainOptions = MAIN_METRICS.map(m => ({ value: m, label: m }));
-    
     const customMetrics = new Set();
     if (studentsData.length > 0) {
         studentsData.forEach(s => Object.keys(s.metricScores).forEach(k => {
@@ -369,7 +372,6 @@ const AdminVisualization = () => {
         }));
     }
     const customOptions = Array.from(customMetrics).map(m => ({ value: m, label: m }));
-    
     return [...base, ...mainOptions, ...customOptions];
   }, [studentsData]);
 
@@ -472,10 +474,9 @@ const AdminVisualization = () => {
       <div className="vis-header">
         <div className="header-top"><h1>📊 Analytics Dashboard</h1><button onClick={() => navigate('/admin')} className="apply-btn" style={{ maxWidth: '200px', marginLeft: 'auto', backgroundColor: '#3498db' }}>← Dashboard</button></div>
         <div className="view-tabs">
-
+          <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
           <button className={`tab-toggle ${activeTab === 'ranking' ? 'active' : ''}`} onClick={() => setActiveTab('ranking')}>🏆 Rankings & Details</button>
           <button className={`tab-toggle ${activeTab === 'comments' ? 'active' : ''}`} onClick={() => setActiveTab('comments')}>💬 Comments</button>
-                    <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
         </div>
       </div>
 
@@ -485,8 +486,27 @@ const AdminVisualization = () => {
       {!loading && activeTab === 'visualization' && (
         <div className="filter-section-wrapper">
             <div className="filter-section">
-                <div className="filter-group"><label>Form Selector *</label><Select options={allForms} isMulti onChange={setSelectedForms} placeholder="Select forms..." value={selectedForms} /></div>
-                <div className="filter-group"><label>Intern Selector *</label><Select options={allInterns} isMulti onChange={setSelectedInterns} placeholder="Select interns..." value={selectedInterns} /></div>
+                {/* Updated Selects with Select All logic */}
+                <div className="filter-group">
+                    <label>Form Selector *</label>
+                    <Select 
+                        options={[SELECT_ALL_OPTION, ...allForms]} 
+                        isMulti 
+                        onChange={(selected) => handleMultiChange(selected, setSelectedForms, allForms)} 
+                        placeholder="Select forms..." 
+                        value={selectedForms} 
+                    />
+                </div>
+                <div className="filter-group">
+                    <label>Intern Selector *</label>
+                    <Select 
+                        options={[SELECT_ALL_OPTION, ...allInterns]} 
+                        isMulti 
+                        onChange={(selected) => handleMultiChange(selected, setSelectedInterns, allInterns)} 
+                        placeholder="Select interns..." 
+                        value={selectedInterns} 
+                    />
+                </div>
                 <div className="filter-group"><label>Metric Level</label><Select options={[{ value: 'Main Metric', label: 'Main Metric' }, { value: 'Sub Metric', label: 'Sub Metric' }]} defaultValue={{ value: metricLevel, label: 'Main Metric' }} onChange={(option) => setMetricLevel(option.value)} /></div>
                 <button className="apply-btn" onClick={handleApplyFilters} disabled={loading || selectedForms.length === 0 || selectedInterns.length === 0}>Apply Filters</button>
             </div>
@@ -500,14 +520,13 @@ const AdminVisualization = () => {
         <div className="ranking-content">
           <div className="ranking-controls">
             
-            {/* ✅ NEW: Form Filter Dropdown */}
             <div className="control-group" style={{ minWidth: '250px' }}>
                 <Select 
-                    options={allForms} // Reusing allForms list
+                    options={allForms} 
                     value={selectedRankForm}
                     onChange={setSelectedRankForm}
                     placeholder="📄 Filter by Form (Optional)"
-                    isClearable={true} // Allow clearing to go back to global rank
+                    isClearable={true} 
                 />
             </div>
 
@@ -517,7 +536,6 @@ const AdminVisualization = () => {
                     value={selectedStudentFilter}
                     onChange={(val) => {
                         setSelectedStudentFilter(val);
-                        // Auto-open detail view if a student is selected
                         if (val) setSelectedStudentId(val.value);
                     }}
                     placeholder="🔍 Select or Search Student..."
@@ -537,14 +555,12 @@ const AdminVisualization = () => {
                     <tr>
                         <th>Rank</th>
                         <th>Student Name</th>
-                        {/* Dynamic Header */}
                         <th>{selectedMetricSort.label === 'Average Final Score' ? 'Avg Score' : selectedMetricSort.label}</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
                   {filteredAndSortedStudents.map((student) => {
-                    // Calculate display score based on selection
                     const displayScore = selectedMetricSort.value === 'averageScore' 
                         ? student.averageScore 
                         : (student.metricScores[selectedMetricSort.value] || 0);
