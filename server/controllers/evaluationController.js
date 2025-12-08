@@ -1,3 +1,4 @@
+// server/controllers/evaluationController.js
 const mongoose = require('mongoose');
 const FormDefinition = require('../models/FormDefinition');
 const User = require('../models/User');
@@ -16,8 +17,8 @@ const calculateAggregatedScore = (subScores, parentMaxValue) => {
   
   const normalized = (sum / max) * 10;
 
-  // SAFETY: Ensure it never exceeds 10
-  return Math.min(normalized, 10);
+  // SAFETY: Ensure it never exceeds 10 and round to 1 decimal place
+  return parseFloat(Math.min(normalized, 10).toFixed(1)); // ✅ Changed to toFixed(1)
 };
 
 // Helper function to determine final grade
@@ -78,7 +79,7 @@ const createEvaluationModel = (formName) => {
   return mongoose.model(collectionName, EvaluationSchema);
 };
 
-// ✅ GET GLOBAL ANALYTICS (Updated to include comments)
+// ✅ GET GLOBAL ANALYTICS (Updated with 1-decimal rounding)
 exports.getGlobalAnalytics = async (req, res) => {
   try {
     // 1. Fetch all forms (Active & Inactive) to ensure complete history
@@ -117,10 +118,14 @@ exports.getGlobalAnalytics = async (req, res) => {
               formId: form._id,
               formName: form.formName,
               date: ev.createdAt,
-              finalScore: ev.finalScore || 0,
+              finalScore: parseFloat((ev.finalScore || 0).toFixed(1)), // ✅ Rounding to 1 decimal
               finalGrade: ev.finalGrade || 'N/A',
-              comment: ev.comment || 'No comment provided', // ✅ Include Comment
-              fieldScores: ev.fieldScores || []
+              comment: ev.comment || 'No comment provided', 
+              // Ensure fieldScores are also rounded for consistency
+              fieldScores: (ev.fieldScores || []).map(f => ({ 
+                ...f, 
+                score: parseFloat((f.score || 0).toFixed(1)) // ✅ Rounding to 1 decimal
+              })) 
             });
 
             // Update totals for ranking
@@ -146,15 +151,15 @@ exports.getGlobalAnalytics = async (req, res) => {
 
     // 4. Calculate Averages and Finalize Data Structure
     const analyticsData = Object.values(studentMap).map(student => {
-      const averageScore = student.formCount > 0 
-        ? (student.totalScoreSum / student.formCount).toFixed(2) 
+      const rawAverageScore = student.formCount > 0 
+        ? (student.totalScoreSum / student.formCount) 
         : 0;
 
       // Calculate average for each metric
       const metricAverages = {};
       for (const [metricName, data] of Object.entries(student.metrics)) {
         metricAverages[metricName] = data.count > 0 
-          ? (data.sum / data.count).toFixed(2) 
+          ? parseFloat((data.sum / data.count).toFixed(1)) // ✅ Rounding to 1 decimal
           : 0;
       }
 
@@ -163,7 +168,7 @@ exports.getGlobalAnalytics = async (req, res) => {
         name: student.name,
         email: student.email,
         totalForms: student.formCount,
-        averageScore: parseFloat(averageScore),
+        averageScore: parseFloat(rawAverageScore.toFixed(1)), // ✅ Rounding to 1 decimal
         metricScores: metricAverages,
         evaluations: student.evaluations.sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort history by date desc
       };
@@ -186,7 +191,7 @@ exports.getGlobalAnalytics = async (req, res) => {
   }
 };
 
-// ✅ SUBMIT EVALUATION (Keeps dynamic max calculation logic)
+// ✅ SUBMIT EVALUATION (Updated with 1-decimal rounding)
 exports.submitEvaluation = async (req, res) => {
   const { formName } = req.params;
   const evaluationData = req.body; // Contains raw sub-scores (0-5) from client
@@ -225,7 +230,7 @@ exports.submitEvaluation = async (req, res) => {
 
       if (field.subScores && field.subScores.length > 0) {
         // Normalize based on true max (e.g. 15)
-        const normalizedScore = calculateAggregatedScore(field.subScores, parentMaxValue);
+        const normalizedScore = calculateAggregatedScore(field.subScores, parentMaxValue); // Score is now rounded in helper
         return {
           fieldName: field.fieldName,
           score: normalizedScore, 
@@ -237,7 +242,7 @@ exports.submitEvaluation = async (req, res) => {
         
         return {
           fieldName: field.fieldName,
-          score: Math.min(normalizedScore, 10),
+          score: parseFloat(Math.min(normalizedScore, 10).toFixed(1)), // ✅ Rounding to 1 decimal
           subScores: []
         };
       }
@@ -260,7 +265,8 @@ exports.submitEvaluation = async (req, res) => {
     ];
     
     // Average of the 5 main metrics
-    const finalScore = commonScores.reduce((acc, score) => acc + score, 0) / commonScores.length;
+    const finalScoreRaw = commonScores.reduce((acc, score) => acc + score, 0) / commonScores.length;
+    const finalScore = parseFloat(Math.min(finalScoreRaw, 10).toFixed(1)); // ✅ Rounding to 1 decimal
     
     // 8. Calculate Final Grade
     const finalGrade = calculateFinalGrade(finalScore);
@@ -270,7 +276,7 @@ exports.submitEvaluation = async (req, res) => {
       intern: evaluationData.intern,
       tutor: tutorUser._id,
       fieldScores: processedFieldScores,
-      finalScore: Math.min(finalScore, 10), // Ensure safety cap
+      finalScore: finalScore, 
       finalGrade: finalGrade, 
       
       // Legacy fields (now normalized 0-10)
@@ -314,8 +320,18 @@ exports.getEvaluation = async (req, res) => {
     if (!evaluation) {
       return res.status(404).json({ msg: 'Evaluation not found' });
     }
+    
+    // ✅ Rounding scores before sending to client
+    const roundedEvaluation = {
+        ...evaluation.toObject(),
+        finalScore: parseFloat(evaluation.finalScore.toFixed(1)),
+        fieldScores: evaluation.fieldScores.map(f => ({
+            ...f.toObject(),
+            score: parseFloat(f.score.toFixed(1))
+        }))
+    };
 
-    res.json(evaluation);
+    res.json(roundedEvaluation);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ msg: 'Server Error' });
@@ -331,7 +347,17 @@ exports.getEvaluations = async (req, res) => {
       .populate('intern')
       .populate('tutor', 'name email');
 
-    res.json(evaluations);
+    // ✅ Rounding scores before sending to client
+    const roundedEvaluations = evaluations.map(evaluation => ({
+        ...evaluation.toObject(),
+        finalScore: parseFloat(evaluation.finalScore.toFixed(1)),
+        fieldScores: evaluation.fieldScores.map(f => ({
+            ...f.toObject(),
+            score: parseFloat(f.score.toFixed(1))
+        }))
+    }));
+
+    res.json(roundedEvaluations);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ msg: 'Server Error' });
@@ -339,7 +365,7 @@ exports.getEvaluations = async (req, res) => {
 };
 
 
-// ✅ UPDATE EVALUATION (Keeps dynamic max calculation logic)
+// ✅ UPDATE EVALUATION (Updated with 1-decimal rounding)
 exports.updateEvaluation = async (req, res) => {
   const { formName, evaluationId } = req.params;
   const evaluationData = req.body;
@@ -370,14 +396,14 @@ exports.updateEvaluation = async (req, res) => {
         const normalizedScore = calculateAggregatedScore(field.subScores, parentMaxValue);
         return {
           fieldName: field.fieldName,
-          score: normalizedScore, // Normalized 0-10
+          score: normalizedScore, // Normalized 0-10 (rounded in helper)
           subScores: field.subScores // Raw 0-5
         };
       } else {
         const normalizedScore = parentMaxValue > 0 ? (field.score / parentMaxValue) * 10 : 0;
         return {
           fieldName: field.fieldName,
-          score: Math.min(normalizedScore, 10),
+          score: parseFloat(Math.min(normalizedScore, 10).toFixed(1)), // ✅ Rounding to 1 decimal
           subScores: []
         };
       }
@@ -398,7 +424,8 @@ exports.updateEvaluation = async (req, res) => {
       teamworkField?.score || 0,
       professionalismField?.score || 0,
     ];
-    const finalScore = commonScores.reduce((acc, score) => acc + score, 0) / commonScores.length;
+    const finalScoreRaw = commonScores.reduce((acc, score) => acc + score, 0) / commonScores.length;
+    const finalScore = parseFloat(Math.min(finalScoreRaw, 10).toFixed(1)); // ✅ Rounding to 1 decimal
     
     // Calculate Final Grade
     const finalGrade = calculateFinalGrade(finalScore);
@@ -407,7 +434,7 @@ exports.updateEvaluation = async (req, res) => {
       evaluationId,
       {
         fieldScores: processedFieldScores,
-        finalScore: Math.min(finalScore, 10), // Update final score
+        finalScore: finalScore, // Update final score (rounded)
         finalGrade: finalGrade, // Update final grade
         technicalSkill: technicalSkillField?.score || 0,
         communication: communicationField?.score || 0,
@@ -425,27 +452,6 @@ exports.updateEvaluation = async (req, res) => {
     if (err.name === 'ValidationError') {
        return res.status(400).json({ msg: `Validation Error: ${err.message}` });
     }
-    res.status(500).json({ msg: 'Server Error' });
-  }
-};
-
-// @desc    Delete an evaluation
-// @route   DELETE /api/evaluations/:formName/:evaluationId
-// @access  Private
-exports.deleteEvaluation = async (req, res) => {
-  const { formName, evaluationId } = req.params;
-
-  try {
-    const EvaluationModel = createEvaluationModel(formName);
-    const evaluation = await EvaluationModel.findByIdAndRemove(evaluationId);
-
-    if (!evaluation) {
-      return res.status(404).json({ msg: 'Evaluation not found' });
-    }
-
-    res.json({ msg: 'Evaluation deleted successfully' });
-  } catch (err) {
-    console.error(err.message);
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -474,3 +480,4 @@ exports.getEvaluatedInterns = async (req, res) => {
     res.json([]); 
   }
 };
+
