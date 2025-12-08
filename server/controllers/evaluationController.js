@@ -244,10 +244,10 @@ exports.submitEvaluation = async (req, res) => {
     });
 
     // 6. Extract legacy field scores (which are now 0-10)
-    const technicalSkillField = processedFieldScores.find(f => f.fieldName === 'Technical Skill');
+    const technicalSkillField = processedFieldScores.find(f => f.fieldName === 'Technical Competence');
     const communicationField = processedFieldScores.find(f => f.fieldName === 'Communication');
-    const problemSolvingField = processedFieldScores.find(f => f.fieldName === 'Problem Solving');
-    const teamworkField = processedFieldScores.find(f => f.fieldName === 'Teamwork');
+    const problemSolvingField = processedFieldScores.find(f => f.fieldName === 'Learning & Adaptability');
+    const teamworkField = processedFieldScores.find(f => f.fieldName === 'Initiative & Ownership');
     const professionalismField = processedFieldScores.find(f => f.fieldName === 'Professionalism');
 
     // 7. Calculate Final Normalized Score (out of 10)
@@ -384,10 +384,10 @@ exports.updateEvaluation = async (req, res) => {
     });
 
     // Extract legacy scores
-    const technicalSkillField = processedFieldScores.find(f => f.fieldName === 'Technical Skill');
+    const technicalSkillField = processedFieldScores.find(f => f.fieldName === 'Technical Competence');
     const communicationField = processedFieldScores.find(f => f.fieldName === 'Communication');
-    const problemSolvingField = processedFieldScores.find(f => f.fieldName === 'Problem Solving');
-    const teamworkField = processedFieldScores.find(f => f.fieldName === 'Teamwork');
+    const problemSolvingField = processedFieldScores.find(f => f.fieldName === 'Learning & Adaptability');
+    const teamworkField = processedFieldScores.find(f => f.fieldName === 'Initiative & Ownership');
     const professionalismField = processedFieldScores.find(f => f.fieldName === 'Professionalism');
     
     // Calculate Final Normalized Score (out of 10)

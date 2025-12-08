@@ -1,3 +1,5 @@
+
+
 const mongoose = require('mongoose');
 
 const SubFieldSchema = new mongoose.Schema({
@@ -21,13 +23,13 @@ const FormDefinitionSchema = new mongoose.Schema({
     type: [FieldSchema],
     default: [
       {
-        fieldName: 'Technical Skill',
+        fieldName: 'Technical Competence',
         minValue: 0,
         maxValue: 15, // ✅ FIXED
         subFields: [
-          { subFieldName: 'Code Quality', minValue: 0, maxValue: 5 }, // ✅ FIXED
-          { subFieldName: 'Problem Solving Approach', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Technology Knowledge', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Fundamentals Understanding', minValue: 0, maxValue: 5 }, // ✅ FIXED
+          { subFieldName: 'Ability to Ask and Answer Questions', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Quiz Score', minValue: 0, maxValue: 5 },
         ],
       },
       {
@@ -36,28 +38,28 @@ const FormDefinitionSchema = new mongoose.Schema({
         maxValue: 15, // ✅ FIXED
         subFields: [
           { subFieldName: 'Active Listening', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Documentation', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Presentation Skills', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Verbal Fluency + Articulation ', minValue: 0, maxValue: 5 },
+          { subFieldName: 'PPT + Way of Delivery (Clarity)', minValue: 0, maxValue: 5 },
         ],
       },
       {
-        fieldName: 'Problem Solving',
+        fieldName: 'Learning & Adaptability',
         minValue: 0,
         maxValue: 15, // ✅ FIXED
         subFields: [
-          { subFieldName: 'Analysis & Planning', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Logical Thinking', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Debugging Skills', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Efforts towards understanding ', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Handling uncertainity', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Willingness to Receive Feedback', minValue: 0, maxValue: 5 },
         ],
       },
       {
-        fieldName: 'Teamwork',
+        fieldName: 'Initiative & Ownership',
         minValue: 0,
         maxValue: 15, // ✅ FIXED
         subFields: [
-          { subFieldName: 'Collaboration', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Supportiveness', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Conflict Resolution', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Volunteering for Demonstrations / Answers', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Asking Relevant Questions', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Recall During the Next Session', minValue: 0, maxValue: 5 },
         ],
       },
       {
@@ -65,9 +67,9 @@ const FormDefinitionSchema = new mongoose.Schema({
         minValue: 0,
         maxValue: 15, // ✅ FIXED
         subFields: [
-          { subFieldName: 'Reliability & Punctuality', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Work Ethic', minValue: 0, maxValue: 5 },
-          { subFieldName: 'Attention to Detail', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Respectful Communication ', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Responsiveness in Team Communication', minValue: 0, maxValue: 5 },
+          { subFieldName: 'Punctuality', minValue: 0, maxValue: 5 },
         ],
       },
     ],

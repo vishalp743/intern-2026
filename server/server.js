@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const helmet = require('helmet'); // ✅ Security Headers
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
@@ -14,26 +14,33 @@ if (!process.env.JWT_SECRET) {
 }
 
 // 2. Middleware
-app.use(helmet()); // ✅ Protects headers
+app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS Configuration
+// 3. CORS Configuration
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: FRONTEND_URL,
   credentials: true
 }));
 
-// 3. Database Connection
+// 4. Database Connection
 const db = require('./config/db');
 db();
 
-// 4. Routes
+// 5. Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/interns', require('./routes/interns'));
 app.use('/api/forms', require('./routes/forms'));
 app.use('/api/evaluations', require('./routes/evaluations'));
 
+// 6. FIX: Correct PORT handling for Render
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// IMPORTANT: Listen on 0.0.0.0 for cloud hosting
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});

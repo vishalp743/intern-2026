@@ -15,7 +15,7 @@ const COLORS = [
 ];
 
 const MAIN_METRICS = [
-    'Technical Skill', 'Communication', 'Problem Solving', 'Teamwork', 'Professionalism',
+    'Technical Competence', 'Communication', 'Learning & Adaptability', 'Initiative & Ownership', 'Professionalism',
 ];
 
 const METRIC_COLOR_MAP = MAIN_METRICS.reduce((acc, metric, index) => {
@@ -474,8 +474,9 @@ const AdminVisualization = () => {
       <div className="vis-header">
         <div className="header-top"><h1>📊 Analytics Dashboard</h1><button onClick={() => navigate('/admin')} className="apply-btn" style={{ maxWidth: '200px', marginLeft: 'auto', backgroundColor: '#3498db' }}>← Dashboard</button></div>
         <div className="view-tabs">
-          <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
+          
           <button className={`tab-toggle ${activeTab === 'ranking' ? 'active' : ''}`} onClick={() => setActiveTab('ranking')}>🏆 Rankings & Details</button>
+          <button className={`tab-toggle ${activeTab === 'visualization' ? 'active' : ''}`} onClick={() => setActiveTab('visualization')}>📈 Visualizations</button>
           <button className={`tab-toggle ${activeTab === 'comments' ? 'active' : ''}`} onClick={() => setActiveTab('comments')}>💬 Comments</button>
         </div>
       </div>
