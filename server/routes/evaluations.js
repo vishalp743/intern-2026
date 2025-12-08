@@ -11,6 +11,6 @@ router.get('/:formName', auth, evaluationController.getEvaluations);
 router.get('/:formName/evaluated-interns', auth, evaluationController.getEvaluatedInterns); // Keep this
 router.get('/:formName/:evaluationId', auth, evaluationController.getEvaluation);
 router.put('/:formName/:evaluationId', auth, evaluationController.updateEvaluation);
-router.delete('/:formName/:evaluationId', auth, evaluationController.deleteEvaluation);
+// router.delete('/:formName/:evaluationId', auth, evaluationController.deleteEvaluation);
 
 module.exports = router;
