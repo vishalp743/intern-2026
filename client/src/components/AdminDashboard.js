@@ -3,6 +3,83 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import './AdminDashboard.css';
 
+// 1. Define Standard Metrics as a Constant (Extracted from server/models/FormDefinition.js for display)
+const STANDARD_METRICS = [
+  {
+    fieldName: 'Technical Competence',
+    maxValue: 15,
+    subFields: [
+      { subFieldName: 'Fundamentals Understanding', maxValue: 5 }, 
+      { subFieldName: 'Ability to Ask and Answer Questions', maxValue: 5 },
+      { subFieldName: 'Quiz Score', maxValue: 5 },
+    ],
+  },
+  {
+    fieldName: 'Communication',
+    maxValue: 15,
+    subFields: [
+      { subFieldName: 'Active Listening', maxValue: 5 },
+      { subFieldName: 'Verbal Fluency + Articulation ', maxValue: 5 },
+      { subFieldName: 'PPT + Way of Delivery (Clarity)', maxValue: 5 },
+    ],
+  },
+  {
+    fieldName: 'Learning & Adaptability',
+    maxValue: 15,
+    subFields: [
+      { subFieldName: 'Efforts towards understanding ', maxValue: 5 },
+      { subFieldName: 'Handling uncertainity', maxValue: 5 },
+      { subFieldName: 'Willingness to Receive Feedback', maxValue: 5 },
+    ],
+  },
+  {
+    fieldName: 'Initiative & Ownership',
+    maxValue: 15,
+    subFields: [
+      { subFieldName: 'Volunteering for Demonstrations / Answers', maxValue: 5 },
+      { subFieldName: 'Asking Relevant Questions', maxValue: 5 },
+      { subFieldName: 'Recall During the Next Session', maxValue: 5 },
+    ],
+  },
+  {
+    fieldName: 'Professionalism',
+    maxValue: 15,
+    subFields: [
+      { subFieldName: 'Respectful Communication ', maxValue: 5 },
+      { subFieldName: 'Responsiveness in Team Communication', maxValue: 5 },
+      { subFieldName: 'Punctuality', maxValue: 5 },
+    ],
+  },
+];
+
+// 2. NEW Component: Metric Details Modal (Popup)
+const MetricDetailsModal = ({ metrics, onClose }) => (
+    <div className="modal-backdrop">
+        <div className="metric-modal">
+            <div className="modal-header">
+                <h2>Standard Metrics Definition</h2>
+                <button className="close-btn-modal" onClick={onClose}>&times;</button>
+            </div>
+            <p className="modal-info">These metrics are automatically included in all forms and are normalized to a 0-10 scale based on 3 sub-metrics (max raw score of 5 each, total raw max 15 per metric).</p>
+            <div className="metric-list">
+                {metrics.map((metric, index) => (
+                    <div key={index} className="metric-item">
+                        <h4 className="metric-title">{metric.fieldName} <span className="metric-max">(Max Score: {metric.maxValue} Normalized: 10)</span></h4>
+                        <ul className="submetric-list">
+                            {metric.subFields.map((sub, subIndex) => (
+                                <li key={subIndex}>
+                                    {sub.subFieldName} <span className="submetric-max">(Raw Score Range: 0-{sub.maxValue})</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('users');
   const [formName, setFormName] = useState('');
@@ -39,6 +116,10 @@ const AdminDashboard = () => {
   // UI states
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  
+  const [allForms, setAllForms] = useState([]); 
+  // ✅ NEW STATE
+  const [showMetricModal, setShowMetricModal] = useState(false); 
 
   const navigate = useNavigate(); 
 
@@ -65,6 +146,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchInterns();
     fetchTutors();
+    fetchAllForms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -85,6 +167,17 @@ const AdminDashboard = () => {
       console.error('Error fetching interns:', error);
     }
   };
+
+  const fetchAllForms = async () => {
+    try {
+      const res = await api.get('/forms'); 
+      setAllForms(res.data);
+    } catch (error) {
+      console.error('Error fetching all forms:', error);
+      showMessage('error', 'Failed to load forms list.');
+    }
+  };
+
 
   // ========== USER MANAGEMENT ==========
   const handleAddUser = async (e) => {
@@ -147,7 +240,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // ========== FORM MANAGEMENT ==========
+  // ========== FORM MANAGEMENT - HELPERS (Existing, not modified) ==========
   const handleAddField = () => {
     setCustomFields([
       ...customFields,
@@ -196,6 +289,24 @@ const AdminDashboard = () => {
     const values = customFields.filter((_, i) => i !== fieldIndex);
     setCustomFields(values);
   };
+  
+  // ========== FORM MANAGEMENT - ACTIONS (Modified with deletion logic) ==========
+
+  const handleDeleteForm = async (formId, formName) => {
+    if (window.confirm(`Are you sure you want to delete the form "${formName}"? This will permanently delete the form definition AND ALL ASSOCIATED EVALUATION DATA. This action cannot be undone.`)) {
+      setLoading(true);
+      try {
+        await api.delete(`/forms/${formId}`); // DELETE /api/forms/:id
+        showMessage('success', `Form "${formName}" and its evaluation data deleted successfully!`);
+        fetchAllForms(); // Refresh the list
+      } catch (error) {
+        const errorMsg = error.response?.data?.msg || 'Error deleting form';
+        showMessage('error', errorMsg);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   const handleSubmitForm = async (e) => {
     e.preventDefault();
@@ -233,6 +344,8 @@ const AdminDashboard = () => {
           ],
         },
       ]);
+      
+      fetchAllForms(); // Refresh the list after creation
     } catch (error) {
       const errorMsg = error.response?.data?.msg || 'Error creating form';
       showMessage('error', errorMsg);
@@ -245,10 +358,57 @@ const AdminDashboard = () => {
     navigate('/admin/visualizations');
   };
 
+  const renderFormsList = () => {
+    if (allForms.length === 0) {
+      return <p className="empty-message">No evaluation forms created yet.</p>;
+    }
+
+    return (
+      <div className="interns-list-section">
+        <h3>Available Forms ({allForms.length})</h3>
+        <table className="interns-table">
+          <thead>
+            <tr>
+              <th>Form Name</th>
+              <th>Assigned Tutor</th>
+              <th>Status</th>
+              <th>Created On</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allForms.map((form) => (
+              <tr key={form._id}>
+                <td>{form.formName}</td>
+                {/* Tutor data is populated and available under form.tutor */}
+                <td>{form.tutor?.name || 'N/A'}</td> 
+                <td><span style={{ color: form.status === 'Active' ? '#2ecc71' : '#e74c3c', fontWeight: 'bold' }}>{form.status}</span></td>
+                <td>{new Date(form.createdAt).toLocaleDateString()}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="btn-delete-small"
+                    onClick={() => handleDeleteForm(form._id, form.formName)}
+                    disabled={loading}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
 
   // ========== RENDER ==========
   return (
     <div className="">
+      {/* 3. Render Modal */}
+      {showMetricModal && <MetricDetailsModal metrics={STANDARD_METRICS} onClose={() => setShowMetricModal(false)} />}
+      
       {/* --- Navigation Bar --- */}
       <nav className="navbar">
         <div className="navbar-left">
@@ -298,13 +458,13 @@ const AdminDashboard = () => {
           </button>
           <button
             className={`tab-button ${activeTab === 'visualizations' ? 'active' : ''}`}
-            onClick={() => setActiveTab('visualizations')}
+            onClick={() => handleViewVisualizations()}
           >
             📊 Visualizations
           </button>
         </div>
 
-        {/* ========== USERS TAB ========== */}
+        {/* ========== USERS TAB (Existing) ========== */}
         {activeTab === 'users' && (
           <div className="tab-content">
             <div className="form-card">
@@ -366,7 +526,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ========== INTERNS TAB ========== */}
+        {/* ========== INTERNS TAB (Existing) ========== */}
         {activeTab === 'interns' && (
           <div className="tab-content">
             <div className="form-card">
@@ -438,7 +598,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ========== FORM CREATION TAB ========== */}
+        {/* ========== FORM CREATION / MANAGEMENT TAB (MODIFIED) ========== */}
         {activeTab === 'forms' && (
           <div className="tab-content">
             <div className="form-card">
@@ -475,82 +635,20 @@ const AdminDashboard = () => {
 
                 <div className="section-divider">
                   <h3>📌 Standard Fields</h3>
-                  <p className="section-info">
+                  <p className="section-info" style={{ marginBottom: '5px' }}>
                     These 5 default metrics include 3 sub-standards each.
                   </p>
+                  {/* Link/Button to open Modal */}
+                  <button 
+                    type="button" 
+                    className="link-btn" 
+                    onClick={() => setShowMetricModal(true)}
+                  >
+                    View Details & Scoring Logic
+                  </button>
                 </div>
 
-                {/* Custom Fields Section - COMMENTED OUT */}
-                {/* <div className="section-divider">
-                  <h3>➕ Custom Fields</h3>
-                  <p className="section-info">
-                    Add custom fields with optional sub-fields.
-                  </p>
-
-                  {customFields.map((field, fieldIndex) => (
-                    <div key={fieldIndex} className="custom-field-container">
-                      <div className="custom-field-header">
-                        <input
-                          type="text"
-                          placeholder="Field Name"
-                          name="fieldName"
-                          value={field.fieldName}
-                          onChange={(event) => handleFieldChange(fieldIndex, event)}
-                        />
-                        <button
-                          type="button"
-                          className="btn-remove"
-                          onClick={() => handleRemoveField(fieldIndex)}
-                        >
-                          ✕ Remove
-                        </button>
-                      </div>
-
-                      <div className="sub-fields-section">
-                        <label className="sub-fields-label">Sub-fields (Optional):</label>
-                        {field.subFields &&
-                          field.subFields.map((subField, subIndex) => (
-                            <div key={subIndex} className="custom-field">
-                              <input
-                                type="text"
-                                placeholder="Sub-field Name"
-                                name="subFieldName"
-                                value={subField.subFieldName}
-                                onChange={(event) =>
-                                  handleSubFieldChange(fieldIndex, subIndex, event)
-                                }
-                              />
-                              <button
-                                type="button"
-                                className="btn-remove-sub"
-                                onClick={() =>
-                                  handleRemoveSubField(fieldIndex, subIndex)
-                                }
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ))}
-                        <button
-                          type="button"
-                          className="btn-secondary-small"
-                          onClick={() => handleAddSubField(fieldIndex)}
-                        >
-                          + Add Sub-field
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleAddField}
-                  >
-                    + Add Custom Field
-                  </button>
-                </div> 
-                */}
+                {/* Custom Fields Section - COMMENTED OUT (Existing) */}
 
                 <div className="form-actions" style={{ display: 'flex', gap: '15px' }}>
                   <button type="submit" className="btn-primary" disabled={loading}>
@@ -558,11 +656,16 @@ const AdminDashboard = () => {
                   </button>
                 </div>
               </form>
+              
+              <hr style={{ margin: '40px 0', border: 'none', borderTop: '2px solid #ecf0f1' }} /> 
+              
+              {renderFormsList()}
+              
             </div>
           </div>
         )}
 
-        {/* ========== VISUALIZATIONS TAB ========== */}
+        {/* ========== VISUALIZATIONS TAB (Existing) ========== */}
         {activeTab === 'visualizations' && (
           <div className="tab-content">
             <div className="form-card" style={{ textAlign: 'center', padding: '50px' }}>
