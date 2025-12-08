@@ -427,7 +427,7 @@ const AdminDashboard = () => {
       <div className="admin-dashboard">
         <div className="dashboard-header">
           <h1>Admin Dashboard</h1>
-          <p>Manage Tutors and create evaluation forms</p>
+          <p>Manage Trainers and create evaluation forms</p>
         </div>
 
         {message.text && (
@@ -442,7 +442,7 @@ const AdminDashboard = () => {
             className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
             onClick={() => setActiveTab('users')}
           >
-            👥 Manage Tutors
+            👥 Manage Trainers
           </button>
           <button
             className={`tab-button ${activeTab === 'interns' ? 'active' : ''}`}
@@ -507,7 +507,7 @@ const AdminDashboard = () => {
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="form-group" style={{ display: "none" }}>
                   <label htmlFor="userRole">User Role *</label>
                   <select
                     id="userRole"
