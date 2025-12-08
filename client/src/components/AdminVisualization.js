@@ -26,6 +26,13 @@ const METRIC_COLOR_MAP = MAIN_METRICS.reduce((acc, metric, index) => {
 const SELECT_ALL_OPTION = { label: "Select All", value: "*" };
 
 // --- HELPERS ---
+
+// ✅ NEW HELPER: Rounds scores to 1 decimal place for consistency
+const roundScore = (score) => {
+    if (typeof score !== 'number' || isNaN(score)) return 0;
+    return parseFloat(score.toFixed(1));
+};
+
 const renderCustomRadarTick = (props) => {
     const { x, y, payload } = props;
     const baseMetricName = payload.value.split(' / ')[0];
@@ -45,7 +52,8 @@ const CustomTooltip = ({ active, payload, label }) => {
       <div className="custom-tooltip" style={{ backgroundColor: '#fff', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
         <p className="label" style={{ fontWeight: 'bold', borderBottom: '1px solid #eee', paddingBottom: '5px', marginBottom: '5px' }}>{`${label}`}</p>
         {payload.map((p, index) => (
-          <p key={index} style={{ color: p.color, margin: '2px 0' }}>{`${p.name}: ${typeof p.value === 'number' ? p.value.toFixed(2) : p.value}`}</p>
+          // ✅ Rounding tooltip values
+          <p key={index} style={{ color: p.color, margin: '2px 0' }}>{`${p.name}: ${roundScore(p.value)}`}</p>
         ))}
       </div>
     );
@@ -61,7 +69,8 @@ const getMetricScores = (evaluation, metricType, formDefinition) => {
     for (const field of evaluation.fieldScores) {
         const fieldName = field.fieldName;
         if (metricType === 'Main Metric') {
-            scores[fieldName] = field.score;
+            // ✅ Rounding normalized score
+            scores[fieldName] = roundScore(field.score);
             metrics.push(fieldName);
         } else {
             const definition = allFields.find(f => f.fieldName === fieldName);
@@ -71,11 +80,13 @@ const getMetricScores = (evaluation, metricType, formDefinition) => {
                     const subDef = definition.subFields.find(sf => sf.subFieldName === subScore.subFieldName);
                     const rawScore = subScore.score; 
                     const maxScore = subDef?.maxValue || 5; 
-                    scores[subMetricKey] = maxScore > 0 ? (rawScore / maxScore) * 10 : 0;
+                    // Calculate and round sub-metric normalized score
+                    scores[subMetricKey] = roundScore(maxScore > 0 ? (rawScore / maxScore) * 10 : 0);
                     metrics.push(subMetricKey);
                 }
             } else {
-                 scores[fieldName] = field.score;
+                 // ✅ Rounding custom field score
+                 scores[fieldName] = roundScore(field.score);
                  metrics.push(fieldName);
             }
         }
@@ -88,14 +99,18 @@ const exportToCSV = (data, filename) => {
   const flattenedData = data.map(row => {
       const flatRow = { ...row };
       if (flatRow.metricScores) {
-          Object.entries(flatRow.metricScores).forEach(([key, val]) => flatRow[key] = val);
+          Object.entries(flatRow.metricScores).forEach(([key, val]) => flatRow[key] = roundScore(val)); 
           delete flatRow.metricScores;
       }
+      // Remove complex object properties before export
       delete flatRow.evaluations; 
+      delete flatRow.currentRank; 
+      delete flatRow.totalForms;
+      
       return flatRow;
   });
   const headers = Object.keys(flattenedData[0]).join(',');
-  const rows = flattenedData.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
+  const rows = flattenedData.map(row => Object.values(row).map(v => `"${typeof v === 'number' ? roundScore(v) : v}"`).join(',')).join('\n'); 
   const blob = new Blob([headers + '\n' + rows], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -140,7 +155,7 @@ const AdminVisualization = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
   // Ranking & Comments Data
-  const [studentsData, setStudentsData] = useState([]);
+  const [studentsData, setStudentsData] = useState([]); 
   const [selectedStudentFilter, setSelectedStudentFilter] = useState(null); 
   const [selectedMetricSort, setSelectedMetricSort] = useState({ value: 'averageScore', label: 'Average Final Score' });
   const [selectedStudentId, setSelectedStudentId] = useState(null);
@@ -169,7 +184,17 @@ const AdminVisualization = () => {
               setLoading(true);
               try {
                   const res = await api.get('/evaluations/global-analytics');
-                  setStudentsData(res.data);
+                  // Server returns scores rounded to 1 decimal (after my previous change), round here for consistency
+                  setStudentsData(res.data.map(s => ({ 
+                      ...s, 
+                      averageScore: roundScore(s.averageScore),
+                      metricScores: Object.fromEntries(Object.entries(s.metricScores).map(([key, value]) => [key, roundScore(value)])), 
+                      evaluations: s.evaluations.map(ev => ({
+                          ...ev,
+                          finalScore: roundScore(ev.finalScore),
+                          fieldScores: ev.fieldScores.map(f => ({...f, score: roundScore(f.score)}))
+                      }))
+                  })));
               } catch (error) { console.error("Error fetching analytics:", error); } finally { setLoading(false); }
           };
           fetchAnalytics();
@@ -192,6 +217,7 @@ const AdminVisualization = () => {
     if (selectedForms.length === 0 || selectedInterns.length === 0) { alert('Please select form and intern.'); return; }
     setLoading(true); setTableData([]); setRadarData([]); setLineChartData([]); setBarChartData([]); setDataMetrics([]);
     try {
+      // Fetch evaluations for selected forms
       const fetchPromises = selectedForms.map(form => api.get(`/evaluations/${form.value}`).then(res => ({ formName: form.value, formDef: form.definition, evaluations: res.data, formCreatedAt: form.createdAt })));
       const results = await Promise.all(fetchPromises);
       const selectedInternIds = selectedInterns.map(i => i.value);
@@ -201,9 +227,18 @@ const AdminVisualization = () => {
         const filteredEvals = result.evaluations.filter(evalItem => selectedInternIds.includes(evalItem.intern._id));
         for (const evalItem of filteredEvals) {
             const internName = allInterns.find(i => i.value === evalItem.intern._id)?.name || 'Unknown';
-            const { scores, metrics } = getMetricScores(evalItem, metricLevel, result.formDef);
+            const { scores, metrics } = getMetricScores(evalItem, metricLevel, result.formDef); 
             metrics.forEach(m => allMetrics.add(m));
-            newTableData.push({ internId: evalItem.intern._id, internName: internName, formName: result.formName, ...scores, finalGrade: evalItem.finalGrade, date: new Date(evalItem.createdAt).toLocaleDateString(), createdAt: evalItem.createdAt, formCreatedAt: result.formCreatedAt });
+            newTableData.push({ 
+                internId: evalItem.intern._id, 
+                internName: internName, 
+                formName: result.formName, 
+                ...scores, 
+                finalGrade: evalItem.finalGrade, 
+                date: new Date(evalItem.createdAt).toLocaleDateString(), 
+                createdAt: evalItem.createdAt, 
+                formCreatedAt: result.formCreatedAt 
+            });
         }
       }
       const metricsArray = Array.from(allMetrics).sort();
@@ -226,7 +261,12 @@ const AdminVisualization = () => {
         const sortedDataForCharts = newTableData.sort((a, b) => new Date(a.formCreatedAt) - new Date(b.formCreatedAt));
         const radarCharts = sortedDataForCharts.map(item => ({ title: `${item.formName} (${item.date})`, data: metricsArray.map(metric => ({ subject: metric, score: item[metric] || 0, fullMark: 10 })) }));
         setRadarData(radarCharts);
-        setLineChartData(sortedDataForCharts.map((item) => { const row = { name: item.formName }; metricsArray.forEach(metric => { row[metric] = item[metric]; }); return row; }));
+        const lineChartData = sortedDataForCharts.map((item) => { 
+            const row = { name: item.formName }; 
+            metricsArray.forEach(metric => { row[metric] = item[metric]; }); 
+            return row; 
+        });
+        setLineChartData(lineChartData);
       } else if (numForms > 1 && numInterns > 1 && newTableData.length > 0) {
         const avgScoresByForm = {};
         metricsArray.forEach(metric => avgScoresByForm[metric] = {});
@@ -242,7 +282,8 @@ const AdminVisualization = () => {
             selectedForms.forEach(form => {
                 const formName = form.value;
                 const { sum, count } = avgScoresByForm[metric][formName] || { sum: 0, count: 0 };
-                dataPoint[formName] = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0;
+                // ✅ Rounding average score for grouped chart
+                dataPoint[formName] = count > 0 ? roundScore(sum / count) : 0;
             });
             return dataPoint;
         });
@@ -283,7 +324,7 @@ const AdminVisualization = () => {
         <h3>Evaluation Data Table (Normalized 0-10)</h3>
         <table className="data-table">
           <thead><tr>{headers.map(header => <th key={header.key} onClick={() => requestSort(header.key)}>{header.label} <span className="sort-icon">{getSortIcon(header.key)}</span></th>)}</tr></thead>
-          <tbody>{sortedTableData.map((row, i) => <tr key={i}>{headers.map(header => <td key={header.key}>{typeof row[header.key] === 'number' ? parseFloat(row[header.key]).toFixed(2) : row[header.key]}</td>)}</tr>)}</tbody>
+          <tbody>{sortedTableData.map((row, i) => <tr key={i}>{headers.map(header => <td key={header.key}>{typeof row[header.key] === 'number' ? roundScore(row[header.key]).toFixed(1) : row[header.key]}</td>)}</tr>)}</tbody>
         </table>
       </div>
     );
@@ -326,40 +367,52 @@ const AdminVisualization = () => {
 
   // --- LOGIC TAB 2 (RANKING) ---
   const filteredAndSortedStudents = useMemo(() => {
-    let processed = [];
+    let processed = [...studentsData];
 
-    // Logic for Form-Specific Ranking
+    // 1. Apply Form-Specific Filter and Recalculate Scores/Metrics (and round them)
     if (selectedRankForm) {
+        processed = [];
         studentsData.forEach(student => {
             const relevantEval = student.evaluations.find(ev => ev.formName === selectedRankForm.value);
             if (relevantEval) {
                 const formMetricScores = {};
                 relevantEval.fieldScores.forEach(f => {
-                    formMetricScores[f.fieldName] = f.score;
+                    formMetricScores[f.fieldName] = roundScore(f.score); 
                 });
                 processed.push({
                     ...student,
-                    averageScore: parseFloat(relevantEval.finalScore),
+                    // Recalculate average score for this specific form/metric, and round
+                    averageScore: roundScore(relevantEval.finalScore), 
                     metricScores: formMetricScores,
                 });
             }
         });
     } else {
-        processed = [...studentsData];
+         // Apply rounding to existing global metrics if not doing form-specific ranking
+         processed = processed.map(s => ({
+             ...s,
+             averageScore: roundScore(s.averageScore), 
+             metricScores: Object.fromEntries(Object.entries(s.metricScores).map(([key, value]) => [key, roundScore(value)])), 
+         }));
     }
 
-    if (selectedStudentFilter) {
-      processed = processed.filter(s => s.id === selectedStudentFilter.value);
-    }
 
-    processed.sort((a, b) => {
+    // 2. Sort the full list based on the selected metric, and assign the CORRECT rank
+    const sortedStudents = processed.sort((a, b) => {
       const metric = selectedMetricSort.value;
       const scoreA = metric === 'averageScore' ? a.averageScore : (a.metricScores[metric] || 0);
       const scoreB = metric === 'averageScore' ? b.averageScore : (b.metricScores[metric] || 0);
       return scoreB - scoreA; 
-    });
+    }).map((s, index) => ({ ...s, currentRank: index + 1 })); // Assign new rank
 
-    return processed.map((s, index) => ({ ...s, currentRank: index + 1 }));
+    // 3. Apply Student Filter (If any) to the already ranked list
+    let finalFiltered = sortedStudents;
+    if (selectedStudentFilter) {
+        // ✅ FIX: Filter the already ranked list, preserving the correct 'currentRank'
+        finalFiltered = sortedStudents.filter(s => s.id === selectedStudentFilter.value);
+    }
+
+    return finalFiltered;
   }, [studentsData, selectedStudentFilter, selectedMetricSort, selectedRankForm]);
 
   const metricOptions = useMemo(() => {
@@ -408,6 +461,10 @@ const AdminVisualization = () => {
     const isOverall = selectedMetric.value === 'averageScore';
     const metricLabel = isOverall ? 'Overall' : selectedMetric.label;
     
+    // Uses the 'currentRank' property calculated in useMemo, which is correct
+    const displayRank = student.currentRank; 
+    
+    // Score is already rounded in useMemo, just display it
     const displayAvgScore = isOverall 
         ? student.averageScore 
         : (student.metricScores[selectedMetric.value] || 0);
@@ -418,11 +475,11 @@ const AdminVisualization = () => {
         <div className="detail-summary">
           <div className="summary-card">
               <span>Rank ({metricLabel})</span>
-              <strong>#{student.currentRank}</strong>
+              <strong>#{displayRank}</strong> 
           </div>
           <div className="summary-card">
               <span>Score ({metricLabel})</span>
-              <strong style={{ color: getScoreColor(displayAvgScore) }}>{displayAvgScore}</strong>
+              <strong style={{ color: getScoreColor(displayAvgScore) }}>{displayAvgScore.toFixed(1)}</strong> {/* ✅ Ensure 1 decimal display */}
           </div>
           <div className="summary-card"><span>Forms</span><strong>{student.totalForms}</strong></div>
         </div>
@@ -441,13 +498,13 @@ const AdminVisualization = () => {
             {student.evaluations.map((ev, idx) => {
                 let displayScore = 0;
                 let displayGrade = 'N/A';
-
+                
                 if (isOverall) {
-                    displayScore = parseFloat(ev.finalScore);
-                    displayGrade = ev.finalGrade;
+                    displayScore = roundScore(ev.finalScore); 
+                    displayGrade = getGradeLabel(displayScore);
                 } else {
                     const field = ev.fieldScores.find(f => f.fieldName === selectedMetric.value);
-                    displayScore = field ? field.score : 0;
+                    displayScore = roundScore(field ? field.score : 0); 
                     displayGrade = getGradeLabel(displayScore);
                 }
 
@@ -456,7 +513,7 @@ const AdminVisualization = () => {
                     <td>{ev.formName}</td>
                     <td>{new Date(ev.date).toLocaleDateString()}</td>
                     <td><span className={`badge badge-${displayGrade.toLowerCase().replace(/\s+/g, '-')}`}>{displayGrade}</span></td>
-                    <td><strong>{displayScore.toFixed(2)}</strong></td>
+                    <td><strong>{displayScore.toFixed(1)}</strong></td> {/* ✅ Ensure 1 decimal display */}
                   </tr>
                 );
             })}
@@ -538,6 +595,7 @@ const AdminVisualization = () => {
                     onChange={(val) => {
                         setSelectedStudentFilter(val);
                         if (val) setSelectedStudentId(val.value);
+                        else setSelectedStudentId(null);
                     }}
                     placeholder="🔍 Select or Search Student..."
                     isClearable={true}
@@ -546,6 +604,7 @@ const AdminVisualization = () => {
             <div className="control-group" style={{ minWidth: '250px' }}>
                 <Select options={metricOptions} value={selectedMetricSort} onChange={setSelectedMetricSort} placeholder="Sort by Metric..." />
             </div>
+            {/* The exported data now uses the rounded scores from filteredAndSortedStudents */}
             <button className="export-btn" onClick={() => exportToCSV(filteredAndSortedStudents, 'rankings.csv')}>📥 Export CSV</button>
           </div>
 
@@ -568,11 +627,11 @@ const AdminVisualization = () => {
 
                     return (
                     <tr key={student.id} className={selectedStudentId === student.id ? 'selected-row' : ''} onClick={() => setSelectedStudentId(student.id)}>
-                      <td className="rank-cell">#{student.currentRank}</td>
+                      <td className="rank-cell">#{student.currentRank}</td> 
                       <td><div className="student-name">{student.name}</div><div className="student-email">{student.email}</div></td>
                       <td>
                           <span className="score-badge" style={{ backgroundColor: getScoreColor(displayScore) }}>
-                              {displayScore}
+                              {displayScore.toFixed(1)} 
                           </span>
                       </td>
                       <td><button className="view-btn">View Details</button></td>
@@ -594,7 +653,7 @@ const AdminVisualization = () => {
         </div>
       )}
 
-      {/* TAB 3: COMMENTS */}
+      {/* TAB 3: COMMENTS (Existing) */}
       {!loading && activeTab === 'comments' && (
           <div className="ranking-content">
               <div className="ranking-controls">
