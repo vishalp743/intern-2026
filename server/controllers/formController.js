@@ -1,6 +1,7 @@
 // server/controllers/formController.js
 const FormDefinition = require('../models/FormDefinition');
 const User = require('../models/User');
+const mongoose = require('mongoose'); // <-- NEW IMPORT
 
 // @desc Create a new form
 // @route POST /api/forms
@@ -61,13 +62,12 @@ const getActiveForms = async (req, res) => {
   }
 };
 
-// @desc Get all form definitions (Admin only for visualization)
+// @desc Get all form definitions (Admin only for visualization and management)
 // @route GET /api/forms
 // @access Private (Admin)
 const getAllForms = async (req, res) => {
   try {
     // Populate the tutor field so the Admin can see who the form belongs to
-    // and correctly identify the form definition when processing evaluations.
     const forms = await FormDefinition.find().populate('tutor', 'name email');
     res.json(forms);
   } catch (err) {
@@ -76,5 +76,42 @@ const getAllForms = async (req, res) => {
   }
 };
 
+// @desc Delete a form
+// @route DELETE /api/forms/:id
+// @access Private (Admin)
+const deleteForm = async (req, res) => { // <-- NEW FUNCTION
+  const { id } = req.params;
+  try {
+    // 1. Find and delete the FormDefinition document
+    const form = await FormDefinition.findByIdAndDelete(id);
+
+    if (!form) {
+      return res.status(404).json({ msg: 'Form not found' });
+    }
+
+    // 2. Determine the evaluation collection name
+    const collectionName = `${form.formName.toLowerCase().replace(/\s+/g, '_')}_evaluations`;
+
+    // 3. Delete the associated dynamic collection (if it exists)
+    try {
+      await mongoose.connection.db.dropCollection(collectionName);
+      console.log(`Successfully dropped collection: ${collectionName}`);
+    } catch (err) {
+      // Handle the case where the collection doesn't exist (mongo error 'ns not found')
+      if (err.message.includes('ns not found')) {
+        console.log(`Collection ${collectionName} does not exist, skipping drop.`);
+      } else {
+        console.error(`Error dropping collection ${collectionName}:`, err.message);
+      }
+    }
+
+    res.json({ msg: `Form "${form.formName}" deleted successfully.` });
+
+  } catch (err) {
+    console.error('Error deleting form:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+};
+
 // ✅ Export correctly as named exports
-module.exports = { createForm, getActiveForms, getAllForms };
+module.exports = { createForm, getActiveForms, getAllForms, deleteForm };
